@@ -1,5 +1,50 @@
 # 📝 Changelog - Configuração de Deploy
 
+## [2025-11-15] - Correção de Proxy Nginx (API 404)
+
+### 🐛 Problema Identificado
+```
+GET /api/debtors 404 (Not Found)
+```
+
+Frontend fazia requisição para `/api/debtors`, mas o Nginx não estava fazendo proxy corretamente para a API.
+
+### 🔧 Solução Aplicada
+
+**Alterado:** `frontend/Dockerfile`
+
+**Problema:**
+- Nginx: `location /api` → `proxy_pass http://api:3000`
+- Resultado: `/api/debtors` → `http://api:3000/api/debtors` ❌ (duplicava `/api`)
+
+**Solução:**
+```nginx
+location /api/ {
+    proxy_pass http://api:3000/api/;
+    # Adiciona barras finais para manter o path correto
+}
+```
+
+**Como funciona agora:**
+- Frontend: `GET /api/debtors`
+- Nginx: `proxy_pass http://api:3000/api/debtors`
+- Backend: Recebe em `/api/debtors` (rota configurada no Express)
+- ✅ Funciona!
+
+### ✅ Outras Melhorias
+- Adicionado timeouts no proxy (60s)
+- Melhorada configuração de headers
+
+### 🚀 Para Aplicar
+```bash
+git add .
+git commit -m "Fix: Corrigir proxy Nginx para rotas da API"
+git push
+# No Portainer: Pull and redeploy
+```
+
+---
+
 ## [2025-11-15] - Correção de Migrations em Produção
 
 ### 🐛 Problema Identificado
