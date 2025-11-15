@@ -1,0 +1,47 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: devedores-postgres-dev
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: devedores_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dev_password_123}
+      POSTGRES_DB: devedores_db
+    volumes:
+      - postgres-data-dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U devedores_user -d devedores_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: ./backend
+    container_name: devedores-api-dev
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://devedores_user:${POSTGRES_PASSWORD:-dev_password_123}@postgres:5432/devedores_db?schema=public
+      JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-in-production}
+      PORT: 3000
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./backend/src:/app/src
+
+  frontend:
+    build: ./frontend
+    container_name: devedores-frontend-dev
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - api
+
+volumes:
+  postgres-data-dev:

@@ -1,0 +1,67 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: systemagt-postgres
+    restart: unless-stopped
+    networks:
+      - traefik-public
+    # NÃO expõe portas - PostgreSQL fica interno
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-systemagt_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-systemagt_db}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./backups:/backups
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-systemagt_user} -d ${POSTGRES_DB:-systemagt_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: systemagt-api
+    restart: unless-stopped
+    networks:
+      - traefik-public
+    # NÃO expõe portas - API fica interna, Traefik gerencia
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-systemagt_user}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-systemagt_db}?schema=public
+      JWT_SECRET: ${JWT_SECRET}
+      PORT: 3000
+      WHATSAPP_API_URL: ${WHATSAPP_API_URL:-https://wtsapi.duckdns.org/enviar}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./backend/uploads:/app/uploads
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: systemagt-frontend
+    restart: unless-stopped
+    networks:
+      - traefik-public
+    # NÃO expõe portas - Traefik gerencia tudo
+    depends_on:
+      - api
+    labels:
+      # TRAEFIK LABELS - ATENÇÃO AO DOMÍNIO!
+      - "traefik.enable=true"
+      - "traefik.http.routers.systemagt.rule=Host(`systemagt.duckdns.org`)"
+      - "traefik.http.routers.systemagt.entrypoints=websecure"
+      - "traefik.http.routers.systemagt.tls.certresolver=letsencrypt"
+      - "traefik.http.services.systemagt.loadbalancer.server.port=80"
+
+volumes:
+  postgres-data:
+
+networks:
+  traefik-public:
+    external: true  # Network criada externamente

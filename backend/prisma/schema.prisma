@@ -1,0 +1,133 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  nome      String
+  email     String   @unique
+  senha     String
+  telefone  String?
+  criadoEm  DateTime @default(now()) @map("criado_em")
+  atualizadoEm DateTime @updatedAt @map("atualizado_em")
+
+  devedores     Debtor[]
+  dividas       Debt[]
+  notificacoes  Notification[]
+
+  @@map("users")
+}
+
+model Debtor {
+  id               String   @id @default(uuid())
+  usuarioId        String   @map("usuario_id")
+  nome             String
+  telefone         String
+  localizacao      String?
+  descricao        String?
+  outrosTelefones  String?  @map("outros_telefones")
+  ativo            Boolean  @default(true)
+  criadoEm         DateTime @default(now()) @map("criado_em")
+  atualizadoEm     DateTime @updatedAt @map("atualizado_em")
+
+  usuario          User           @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  dividas          Debt[]
+  notificacoes     Notification[]
+
+  @@map("debtors")
+}
+
+enum DebtStatus {
+  PENDENTE
+  PAGO
+  ATRASADO
+}
+
+model Debt {
+  id                      String     @id @default(uuid())
+  usuarioId               String     @map("usuario_id")
+  devedorId               String     @map("devedor_id")
+  valorInicial            Float      @map("valor_inicial")
+  valorAtual              Float      @map("valor_atual")
+  taxaJuros               Float      @map("taxa_juros")
+  dataEmprestimo          DateTime   @map("data_emprestimo") @default(now())
+  dataVencimento          DateTime   @map("data_vencimento")
+  status                  DebtStatus @default(PENDENTE)
+  notificacaoAuto         Boolean    @default(false) @map("notificacao_auto")
+  periodicidadeNotificacao Int?      @map("periodicidade_notificacao")
+  ultimaNotificacao       DateTime?  @map("ultima_notificacao")
+  ativo                   Boolean    @default(true)
+  criadoEm                DateTime   @default(now()) @map("criado_em")
+  atualizadoEm            DateTime   @updatedAt @map("atualizado_em")
+
+  usuario                 User           @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  devedor                 Debtor         @relation(fields: [devedorId], references: [id], onDelete: Cascade)
+  pagamentos              Payment[]
+  garantias               Collateral[]
+  notificacoes            Notification[]
+
+  @@map("debts")
+}
+
+model Payment {
+  id            String   @id @default(uuid())
+  dividaId      String   @map("divida_id")
+  valor         Float
+  dataPagamento DateTime @default(now()) @map("data_pagamento")
+  descricao     String?
+  ativo         Boolean  @default(true)
+  criadoEm      DateTime @default(now()) @map("criado_em")
+  atualizadoEm  DateTime @updatedAt @map("atualizado_em")
+
+  divida        Debt     @relation(fields: [dividaId], references: [id], onDelete: Cascade)
+
+  @@map("payments")
+}
+
+model Collateral {
+  id           String   @id @default(uuid())
+  dividaId     String   @map("divida_id")
+  nomeArquivo  String   @map("nome_arquivo")
+  caminhoArquivo String @map("caminho_arquivo")
+  tipoArquivo  String   @map("tipo_arquivo")
+  tamanho      Int
+  descricao    String?
+  ativo        Boolean  @default(true)
+  criadoEm     DateTime @default(now()) @map("criado_em")
+  atualizadoEm DateTime @updatedAt @map("atualizado_em")
+
+  divida       Debt     @relation(fields: [dividaId], references: [id], onDelete: Cascade)
+
+  @@map("collaterals")
+}
+
+enum NotificationStatus {
+  PENDENTE
+  ENVIADO
+  FALHOU
+}
+
+model Notification {
+  id            String             @id @default(uuid())
+  usuarioId     String             @map("usuario_id")
+  devedorId     String?            @map("devedor_id")
+  dividaId      String?            @map("divida_id")
+  telefone      String
+  mensagem      String
+  status        NotificationStatus @default(PENDENTE)
+  erroMensagem  String?            @map("erro_mensagem")
+  enviadoEm     DateTime?          @map("enviado_em")
+  criadoEm      DateTime           @default(now()) @map("criado_em")
+  atualizadoEm  DateTime           @updatedAt @map("atualizado_em")
+
+  usuario       User               @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  devedor       Debtor?            @relation(fields: [devedorId], references: [id], onDelete: Cascade)
+  divida        Debt?              @relation(fields: [dividaId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
