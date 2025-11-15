@@ -130,9 +130,6 @@ server {
     root /usr/share/nginx/html;
     index index.html;
 
-    # Aumentar limite do body (para uploads)
-    client_max_body_size 50M;
-
     # Frontend (React Router)
     location / {
         try_files $uri $uri/ /index.html;
@@ -148,21 +145,11 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_set_header X-Forwarded-Host $host;
-        proxy_set_header X-Forwarded-Port $server_port;
 
-        # Headers para WebSocket/Upgrade
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-
-        # Timeouts (importante para uploads e operações longas)
+        # Timeouts (importante para uploads)
         proxy_connect_timeout 60s;
         proxy_send_timeout 60s;
         proxy_read_timeout 60s;
-
-        # Buffering (CRÍTICO para POST funcionar corretamente)
-        proxy_buffering off;
-        proxy_request_buffering off;
     }
 }
 ```
@@ -170,48 +157,6 @@ server {
 ---
 
 ## 🐛 Troubleshooting
-
-### POST Funciona na Segunda Tentativa
-
-**Sintoma:**
-```
-POST /api/auth/register → 404 (primeira vez)
-POST /api/auth/register → 200 OK (segunda vez)
-```
-
-**Causa:** Nginx buffering está atrasando a requisição
-
-**Solução:**
-```nginx
-location /api/ {
-    proxy_pass http://api:3000/api/;
-
-    # Desabilitar buffering
-    proxy_buffering off;
-    proxy_request_buffering off;
-}
-```
-
----
-
-### POST Retorna 413 Request Entity Too Large
-
-**Sintoma:**
-```
-POST /api/collaterals → 413 (Request Entity Too Large)
-```
-
-**Causa:** Body da requisição maior que o limite do Nginx
-
-**Solução:**
-```nginx
-server {
-    # Aumentar limite (padrão é 1M)
-    client_max_body_size 50M;
-}
-```
-
----
 
 ### 404 Not Found
 

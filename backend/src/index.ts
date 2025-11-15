@@ -18,18 +18,8 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// CORS configurado para permitir todas as origens
-app.use(cors({
-  origin: true,
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
-  exposedHeaders: ['Authorization'],
-}));
-
-// Body parser com limite aumentado para uploads
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(cors());
+app.use(express.json());
 
 // Servir arquivos estáticos (uploads)
 app.use('/uploads', express.static(path.resolve(__dirname, '..', 'uploads')));
