@@ -111,18 +111,21 @@ O Portainer irá:
 
 ---
 
-### 7️⃣ Executar Migrations do Banco
+### 7️⃣ Verificar Inicialização
 
+O banco de dados é configurado automaticamente no primeiro start!
+
+O container `systemagt-api` executa automaticamente:
+- ✅ Sincronização do schema do banco
+- ✅ Criação de todas as tabelas
+- ✅ Inicialização dos serviços
+
+**Não é necessário executar comandos manualmente!**
+
+Para verificar se tudo correu bem:
 1. Clique no container **systemagt-api**
-2. Clique na aba **Console**
-3. Clique em **Connect**
-4. Execute o comando:
-
-```bash
-npx prisma migrate deploy
-```
-
-Aguarde até ver a mensagem de sucesso.
+2. Clique na aba **Logs**
+3. Procure por: `✅ Banco de dados sincronizado com sucesso!`
 
 ---
 

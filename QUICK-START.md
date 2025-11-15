@@ -42,11 +42,9 @@ openssl rand -base64 32
 ### 4️⃣ Deploy
 Clique em **Deploy the stack**
 
-### 5️⃣ Executar Migrations
-No Portainer, acesse console do container `systemagt-api`:
-```bash
-npx prisma migrate deploy
-```
+### 5️⃣ Aguardar Inicialização
+O banco de dados é configurado automaticamente!
+Aguarde cerca de 30 segundos.
 
 ### 6️⃣ Acessar
 ```
