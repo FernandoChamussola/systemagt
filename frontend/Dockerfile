@@ -14,13 +14,13 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 
 RUN echo 'resolver 127.0.0.11 valid=30s ipv6=off; \
 \
-# Permitir underscores em headers \
-underscores_in_headers on; \
-\
 server { \
     listen 80; \
     root /usr/share/nginx/html; \
     index index.html; \
+    \
+    # Permitir underscores em headers \
+    underscores_in_headers on; \
     \
     # Aumentar tamanho máximo do body (para uploads) \
     client_max_body_size 50M; \
