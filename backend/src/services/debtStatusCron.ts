@@ -5,12 +5,12 @@ const prisma = new PrismaClient();
 
 // Função para atualizar status das dívidas vencidas
 async function atualizarStatusDividas() {
-  console.log('📅 [CRON] Verificando dívidas vencidas...');
+  console.log('📅 [CRON] Verificando status das dívidas...');
 
   try {
     const hoje = new Date();
 
-    // Buscar dívidas PENDENTES que já venceram
+    // 1. Buscar dívidas PENDENTES que já venceram (PENDENTE → ATRASADO)
     const dividasVencidas = await prisma.debt.findMany({
       where: {
         ativo: true,
@@ -21,31 +21,73 @@ async function atualizarStatusDividas() {
       },
     });
 
-    if (dividasVencidas.length === 0) {
-      console.log('✅ [CRON] Nenhuma dívida vencida encontrada');
-      return;
-    }
-
-    console.log(`📊 [CRON] Encontradas ${dividasVencidas.length} dívidas vencidas`);
-
-    // Atualizar status para ATRASADO
-    const resultado = await prisma.debt.updateMany({
+    // 2. Buscar dívidas ATRASADAS que foram atualizadas para o futuro (ATRASADO → PENDENTE)
+    const dividasParaPendente = await prisma.debt.findMany({
       where: {
-        id: {
-          in: dividasVencidas.map((d) => d.id),
-        },
-      },
-      data: {
+        ativo: true,
         status: 'ATRASADO',
+        dataVencimento: {
+          gte: hoje, // Data de vencimento maior ou igual a hoje
+        },
       },
     });
 
-    console.log(`✅ [CRON] ${resultado.count} dívidas marcadas como ATRASADO`);
+    let totalAtualizadas = 0;
 
-    // Log detalhado das dívidas atualizadas
-    for (const debt of dividasVencidas) {
-      const diasAtraso = Math.ceil((hoje.getTime() - debt.dataVencimento.getTime()) / (1000 * 60 * 60 * 24));
-      console.log(`   - Dívida ${debt.id.substring(0, 8)}... (${diasAtraso} dias de atraso)`);
+    // Atualizar PENDENTE → ATRASADO
+    if (dividasVencidas.length > 0) {
+      console.log(`📊 [CRON] Encontradas ${dividasVencidas.length} dívidas vencidas`);
+
+      const resultado = await prisma.debt.updateMany({
+        where: {
+          id: {
+            in: dividasVencidas.map((d) => d.id),
+          },
+        },
+        data: {
+          status: 'ATRASADO',
+        },
+      });
+
+      console.log(`✅ [CRON] ${resultado.count} dívidas marcadas como ATRASADO`);
+
+      // Log detalhado das dívidas atualizadas
+      for (const debt of dividasVencidas) {
+        const diasAtraso = Math.ceil((hoje.getTime() - debt.dataVencimento.getTime()) / (1000 * 60 * 60 * 24));
+        console.log(`   - Dívida ${debt.id.substring(0, 8)}... (${diasAtraso} dias de atraso)`);
+      }
+
+      totalAtualizadas += resultado.count;
+    }
+
+    // Atualizar ATRASADO → PENDENTE
+    if (dividasParaPendente.length > 0) {
+      console.log(`🔄 [CRON] Encontradas ${dividasParaPendente.length} dívidas atrasadas com vencimento atualizado`);
+
+      const resultado = await prisma.debt.updateMany({
+        where: {
+          id: {
+            in: dividasParaPendente.map((d) => d.id),
+          },
+        },
+        data: {
+          status: 'PENDENTE',
+        },
+      });
+
+      console.log(`✅ [CRON] ${resultado.count} dívidas marcadas como PENDENTE`);
+
+      // Log detalhado das dívidas atualizadas
+      for (const debt of dividasParaPendente) {
+        const diasRestantes = Math.ceil((debt.dataVencimento.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24));
+        console.log(`   - Dívida ${debt.id.substring(0, 8)}... (faltam ${diasRestantes} dias)`);
+      }
+
+      totalAtualizadas += resultado.count;
+    }
+
+    if (totalAtualizadas === 0) {
+      console.log('✅ [CRON] Nenhuma dívida precisa de atualização');
     }
   } catch (error) {
     console.error('❌ [CRON] Erro ao atualizar status das dívidas:', error);
