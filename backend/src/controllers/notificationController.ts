@@ -1,12 +1,17 @@
 import { Response } from 'express';
 import { PrismaClient, NotificationStatus } from '@prisma/client';
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
 import https from 'https';
+import dns from 'dns';
 import { AuthRequest } from '../types';
 
 const prisma = new PrismaClient();
 
 const WHATSAPP_API_URL = 'https://wtsapi.duckdns.org/enviar';
+
+// Configurar DNS resolver com timeouts maiores
+dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']); // Google DNS e Cloudflare DNS
+dns.setDefaultResultOrder('ipv4first');
 
 // Função para formatar telefone: garante que tenha o prefixo 258
 function formatarTelefone(telefone: string): string {
@@ -67,46 +72,92 @@ function gerarMensagemCobranca(params: {
   }
 }
 
-// Função para enviar notificação via WhatsApp
+// Função para enviar notificação via WhatsApp com retry automático
 async function enviarWhatsApp(telefone: string, mensagem: string): Promise<{ sucesso: boolean; erro?: string }> {
-  try {
-    const telefoneFormatado = formatarTelefone(telefone);
+  const telefoneFormatado = formatarTelefone(telefone);
+  const maxRetries = 3; // Número máximo de tentativas
+  let lastError: string = '';
 
-    console.log(`📱 Enviando WhatsApp para: ${telefoneFormatado}`);
-    console.log(`📝 Mensagem: ${mensagem.substring(0, 50)}...`);
+  console.log(`📱 Enviando WhatsApp para: ${telefoneFormatado}`);
+  console.log(`📝 Mensagem: ${mensagem.substring(0, 50)}...`);
 
-    const response = await axios.post(
-      WHATSAPP_API_URL,
-      {
-        numero: telefoneFormatado,
-        mensagem: mensagem,
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json',
+  for (let tentativa = 1; tentativa <= maxRetries; tentativa++) {
+    try {
+      console.log(`🔄 Tentativa ${tentativa} de ${maxRetries}...`);
+
+      const response = await axios.post(
+        WHATSAPP_API_URL,
+        {
+          numero: telefoneFormatado,
+          mensagem: mensagem,
         },
-        timeout: 15000, // 15 segundos
-        httpsAgent: new https.Agent({
-          rejectUnauthorized: false, // Desabilita verificação SSL
-        }),
-      }
-    );
+        {
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          timeout: 30000, // 30 segundos (aumentado de 15s)
+          httpsAgent: new https.Agent({
+            rejectUnauthorized: false, // Desabilita verificação SSL
+            timeout: 30000,
+            keepAlive: true,
+            keepAliveMsecs: 10000,
+          }),
+          // Configurações adicionais para resolver problemas de DNS
+          family: 4, // Força IPv4
+          lookup: (hostname, options, callback) => {
+            // Lookup personalizado com timeout
+            const lookupOptions = { ...options, all: false };
+            dns.lookup(hostname, lookupOptions, (err, address, family) => {
+              if (err) {
+                console.error(`❌ Erro de DNS lookup para ${hostname}:`, err.message);
+              } else {
+                console.log(`✅ DNS resolvido: ${hostname} -> ${address}`);
+              }
+              callback(err, address, family);
+            });
+          },
+        }
+      );
 
-    if (response.status === 200) {
-      console.log(`✅ Mensagem enviada com sucesso para ${telefoneFormatado}`);
-      return { sucesso: true };
-    } else {
-      console.error(`❌ Erro ao enviar mensagem: Status ${response.status}`);
-      return { sucesso: false, erro: `Status ${response.status}` };
+      if (response.status === 200) {
+        console.log(`✅ Mensagem enviada com sucesso para ${telefoneFormatado} na tentativa ${tentativa}`);
+        return { sucesso: true };
+      } else {
+        console.error(`❌ Erro ao enviar mensagem: Status ${response.status}`);
+        lastError = `Status ${response.status}`;
+      }
+    } catch (error: any) {
+      const isLastTry = tentativa === maxRetries;
+
+      // Identificar tipo de erro
+      if (error.code === 'EAI_AGAIN' || error.code === 'ENOTFOUND') {
+        console.error(`❌ Erro de DNS (tentativa ${tentativa}/${maxRetries}):`, error.message);
+        lastError = `Erro de DNS: ${error.message}`;
+      } else if (error.code === 'ETIMEDOUT' || error.code === 'ECONNABORTED') {
+        console.error(`❌ Timeout (tentativa ${tentativa}/${maxRetries}):`, error.message);
+        lastError = `Timeout: ${error.message}`;
+      } else if (error.response) {
+        console.error(`❌ Erro da API (tentativa ${tentativa}/${maxRetries}):`, error.response.data);
+        lastError = error.response.data?.error || error.message;
+        // Se for erro da API (não de rede), não tentar novamente
+        return { sucesso: false, erro: lastError };
+      } else {
+        console.error(`❌ Erro ao enviar WhatsApp (tentativa ${tentativa}/${maxRetries}):`, error.message);
+        lastError = error.message;
+      }
+
+      // Se não for a última tentativa, aguardar antes de tentar novamente
+      if (!isLastTry) {
+        const waitTime = tentativa * 2000; // Aumenta o tempo de espera progressivamente (2s, 4s, 6s)
+        console.log(`⏳ Aguardando ${waitTime / 1000}s antes da próxima tentativa...`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+      }
     }
-  } catch (error: any) {
-    console.error(`❌ Erro ao enviar WhatsApp:`, error.message);
-    if (error.response) {
-      console.error(`   Resposta da API:`, error.response.data);
-      return { sucesso: false, erro: error.response.data?.error || error.message };
-    }
-    return { sucesso: false, erro: error.message };
   }
+
+  // Se chegou aqui, todas as tentativas falharam
+  console.error(`❌ Falha ao enviar WhatsApp após ${maxRetries} tentativas`);
+  return { sucesso: false, erro: lastError };
 }
 
 // Listar notificações
