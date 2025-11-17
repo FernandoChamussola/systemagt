@@ -18,7 +18,19 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(cors());
+// Configuração CORS melhorada para resolver problema de preflight
+app.use(cors({
+  origin: true, // Permite qualquer origem (ou especifique domínios específicos)
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  exposedHeaders: ['Content-Length', 'X-JSON'],
+  maxAge: 86400, // Cache preflight por 24h
+}));
+
+// Middleware para tratar OPTIONS globalmente
+app.options('*', cors());
+
 app.use(express.json());
 
 // Servir arquivos estáticos (uploads)
