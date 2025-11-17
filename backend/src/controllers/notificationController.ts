@@ -104,18 +104,6 @@ async function enviarWhatsApp(telefone: string, mensagem: string): Promise<{ suc
           }),
           // Configurações adicionais para resolver problemas de DNS
           family: 4, // Força IPv4
-          lookup: (hostname, options, callback) => {
-            // Lookup personalizado com timeout
-            const lookupOptions = { ...options, all: false };
-            dns.lookup(hostname, lookupOptions, (err, address, family) => {
-              if (err) {
-                console.error(`❌ Erro de DNS lookup para ${hostname}:`, err.message);
-              } else {
-                console.log(`✅ DNS resolvido: ${hostname} -> ${address}`);
-              }
-              callback(err, address, family);
-            });
-          },
         }
       );
 
