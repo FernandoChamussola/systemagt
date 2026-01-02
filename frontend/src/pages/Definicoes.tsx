@@ -28,21 +28,25 @@ export default function Definicoes() {
   const [mensagem, setMensagem] = useState('');
   const [ultimaConexao, setUltimaConexao] = useState<UltimaConexao | null>(null);
 
-  const pollingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Ler última conexão no localStorage
   useEffect(() => {
     const saved = localStorage.getItem('ultima_conexao_whatsapp');
     if (saved) setUltimaConexao(JSON.parse(saved));
-    iniciarPolling();
+  }, []);
+
+  // Limpar polling quando o componente desmontar
+  useEffect(() => {
+    return () => {
+      if (pollingRef.current) clearInterval(pollingRef.current);
+    };
   }, []);
 
   function guardarUltimaConexao(status: 'sucesso' | 'erro') {
     const data = new Date().toLocaleString();
     const info = { status, data };
-    localStorage.setItem(
-      'ultima_conexao_whatsapp',
-      JSON.stringify(info)
-    );
+    localStorage.setItem('ultima_conexao_whatsapp', JSON.stringify(info));
     setUltimaConexao(info);
   }
 
@@ -59,7 +63,7 @@ export default function Definicoes() {
     onSuccess: (data) => {
       if (data.qr) setQr(data.qr);
       guardarUltimaConexao('sucesso');
-      iniciarPolling();
+      iniciarPolling(); // iniciar polling apenas após conectar
     },
     onError: () => {
       guardarUltimaConexao('erro');
@@ -95,21 +99,27 @@ export default function Definicoes() {
   });
 
   function iniciarPolling() {
+    if (!numero) return; // só inicia se houver número
     if (pollingRef.current) clearInterval(pollingRef.current);
 
     pollingRef.current = setInterval(async () => {
-      const res = await fetch(
-        `https://wtsapi.duckdns.org/status?numero=${numero}`
-      );
-      const data = await res.json();
+      try {
+        const res = await fetch(
+          `https://wtsapi.duckdns.org/status?numero=${numero}`
+        );
+        if (!res.ok) throw new Error();
+        const data = await res.json();
 
-      setStatus(data.status);
+        setStatus(data.status);
 
-      if (data.status === 'conectado') {
-        setQr(null);
-        clearInterval(pollingRef.current!);
-      } else if (data.qr) {
-        setQr(data.qr);
+        if (data.status === 'conectado') {
+          setQr(null);
+          if (pollingRef.current) clearInterval(pollingRef.current);
+        } else if (data.qr) {
+          setQr(data.qr);
+        }
+      } catch (err) {
+        console.error('Erro no polling:', err);
       }
     }, 2000);
   }
@@ -130,9 +140,7 @@ export default function Definicoes() {
         {ultimaConexao && (
           <div className="flex items-center gap-2 text-sm">
             <Clock className="w-4 h-4 text-muted-foreground" />
-            <span className="text-muted-foreground">
-              Última conexão:
-            </span>
+            <span className="text-muted-foreground">Última conexão:</span>
             <span
               className={`font-medium ${
                 ultimaConexao.status === 'sucesso'
@@ -157,7 +165,6 @@ export default function Definicoes() {
         </p>
       </div>
 
-      {/* Aviso + Última conexão */}
       <AvisoInfo />
 
       {/* Status */}
@@ -191,7 +198,7 @@ export default function Definicoes() {
 
         <Button
           onClick={() => conectarMutation.mutate()}
-          disabled={conectarMutation.isPending}
+          disabled={conectarMutation.isPending || !numero}
         >
           <QrCode className="mr-2 h-4 w-4" />
           Conectar
