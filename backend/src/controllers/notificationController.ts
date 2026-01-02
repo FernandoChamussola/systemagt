@@ -73,8 +73,9 @@ function gerarMensagemCobranca(params: {
 }
 
 // Função para enviar notificação via WhatsApp com retry automático
-async function enviarWhatsApp(telefone: string, mensagem: string): Promise<{ sucesso: boolean; erro?: string }> {
-  const telefoneFormatado = formatarTelefone(telefone);
+async function enviarWhatsApp(origemMsg: string, destino: string, mensagem: string): Promise<{ sucesso: boolean; erro?: string }> {
+  const telefoneFormatado = formatarTelefone(destino);
+  const origem = formatarTelefone(origemMsg);
   const maxRetries = 3; // Número máximo de tentativas
   let lastError: string = '';
 
@@ -88,7 +89,8 @@ async function enviarWhatsApp(telefone: string, mensagem: string): Promise<{ suc
       const response = await axios.post(
         WHATSAPP_API_URL,
         {
-          numero: telefoneFormatado,
+          origem: origem,
+          destino: telefoneFormatado,
           mensagem: mensagem,
         },
         {
@@ -250,7 +252,7 @@ export async function sendManualNotification(req: AuthRequest, res: Response) {
     });
 
     // Enviar WhatsApp
-    const resultado = await enviarWhatsApp(debt.devedor.telefone, mensagem);
+    const resultado = await enviarWhatsApp(req.user.telefone, debt.devedor.telefone, mensagem);
 
     // Atualizar status da notificação
     await prisma.notification.update({

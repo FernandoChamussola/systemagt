@@ -11,7 +11,7 @@ async function processarNotificacoesAutomaticas() {
   try {
     const hoje = new Date();
 
-    // Buscar dívidas com notificação automática habilitada
+    // Buscar dívidas com notificação automática habilitada, incluindo usuário e devedor
     const dividasParaNotificar = await prisma.debt.findMany({
       where: {
         ativo: true,
@@ -20,7 +20,8 @@ async function processarNotificacoesAutomaticas() {
         periodicidadeNotificacao: { not: null },
       },
       include: {
-        devedor: true,
+        devedor: true,   // para obter telefone e nome do devedor
+        usuario: true,   // para obter telefone do usuário que cadastrou a dívida
         pagamentos: {
           where: { ativo: true },
         },
@@ -36,25 +37,19 @@ async function processarNotificacoesAutomaticas() {
     for (const debt of dividasParaNotificar) {
       // Determinar periodicidade baseada no status
       let periodicidade: number;
-
       if (debt.status === 'ATRASADO') {
-        // Se está atrasada, enviar a cada 2 dias (fixo)
-        periodicidade = 2;
+        periodicidade = 2; // dívidas atrasadas notificadas a cada 2 dias
       } else {
-        // Se está pendente, usar periodicidade definida pelo usuário
         periodicidade = debt.periodicidadeNotificacao!;
       }
 
       let deveEnviar = false;
 
       if (!debt.ultimaNotificacao) {
-        // Nunca enviou, enviar agora
-        deveEnviar = true;
+        deveEnviar = true; // nunca enviou
       } else {
-        // Verificar se já passou o tempo da periodicidade
         const ultimaNotificacao = new Date(debt.ultimaNotificacao);
         const diferencaDias = Math.floor((hoje.getTime() - ultimaNotificacao.getTime()) / (1000 * 60 * 60 * 24));
-
         if (diferencaDias >= periodicidade) {
           deveEnviar = true;
         }
@@ -74,16 +69,14 @@ async function processarNotificacoesAutomaticas() {
       const diasAtraso = debt.dataVencimento < hoje
         ? Math.ceil((hoje.getTime() - debt.dataVencimento.getTime()) / (1000 * 60 * 60 * 24))
         : 0;
-
       const diasParaVencer = debt.dataVencimento > hoje
         ? Math.ceil((debt.dataVencimento.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24))
         : 0;
 
-      // Gerar mensagem baseada no status
+      // Gerar mensagem
       let mensagem: string;
 
       if (debt.status === 'ATRASADO') {
-        // Mensagem de cobrança para dívida atrasada
         mensagem = gerarMensagemCobranca({
           nomeDevedor: debt.devedor.nome,
           valorRestante,
@@ -91,7 +84,6 @@ async function processarNotificacoesAutomaticas() {
           diasAtraso,
         });
       } else {
-        // Mensagem de lembrete para dívida próxima ao vencimento
         const valorFormatado = new Intl.NumberFormat('pt-MZ', {
           style: 'currency',
           currency: 'MZN',
@@ -126,10 +118,10 @@ async function processarNotificacoesAutomaticas() {
         },
       });
 
-      console.log(`📤 [CRON] Enviando notificação para ${debt.devedor.nome} (${debt.devedor.telefone})`);
+      console.log(`📤 [CRON] Enviando notificação para ${debt.devedor.nome} via usuário ${debt.usuario.telefone}`);
 
-      // Enviar WhatsApp
-      const resultado = await enviarWhatsApp(debt.devedor.telefone, mensagem);
+      // Enviar WhatsApp usando telefone do usuário
+      const resultado = await enviarWhatsApp(debt.usuario.telefone!, debt.devedor.telefone, mensagem);
 
       // Atualizar status da notificação
       await prisma.notification.update({
@@ -145,16 +137,14 @@ async function processarNotificacoesAutomaticas() {
       if (resultado.sucesso) {
         await prisma.debt.update({
           where: { id: debt.id },
-          data: {
-            ultimaNotificacao: new Date(),
-          },
+          data: { ultimaNotificacao: new Date() },
         });
         enviadas++;
       } else {
         falhas++;
       }
 
-      // Aguardar 5 segundos entre envios para evitar bloqueio do WhatsApp
+      // Aguardar 5 segundos entre envios
       await new Promise(resolve => setTimeout(resolve, 5000));
     }
 
@@ -163,12 +153,14 @@ async function processarNotificacoesAutomaticas() {
     console.log(`   - Puladas (não chegou a periodicidade): ${puladas}`);
     console.log(`   - Falhas: ${falhas}`);
 
-    // Enviar resumo para os usuários que tiveram notificações enviadas
+    // Enviar resumo aos usuários que tiveram notificações
     await enviarResumoParaUsuarios(dividasParaNotificar, enviadas, falhas);
+
   } catch (error) {
     console.error('❌ [CRON] Erro ao processar notificações automáticas:', error);
   }
 }
+
 
 // Função para enviar resumo para os usuários
 async function enviarResumoParaUsuarios(
@@ -270,7 +262,7 @@ async function enviarResumoParaUsuarios(
 
       // Enviar WhatsApp para o usuário
       console.log(`📤 [CRON] Enviando resumo para usuário ${usuario.nome} (${usuario.telefone})`);
-      await enviarWhatsApp(usuario.telefone, mensagem);
+      await enviarWhatsApp(usuario.telefone,usuario.telefone, mensagem);
 
       // Aguardar 3 segundos antes do próximo resumo
       await new Promise(resolve => setTimeout(resolve, 3000));

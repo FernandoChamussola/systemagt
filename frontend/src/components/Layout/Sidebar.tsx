@@ -8,6 +8,7 @@ const menuItems = [
   { icon: FileText, label: 'Dívidas', path: '/dividas' },
   { icon: Bell, label: 'Notificações', path: '/notificacoes' },
   { icon: BarChart, label: 'Relatórios', path: '/relatorios' },
+  { icon: DollarSign, label: 'Configurações', path: '/definicoes' },
 ];
 
 interface SidebarProps {

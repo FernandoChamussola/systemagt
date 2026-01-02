@@ -65,6 +65,7 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
               variant="ghost"
               size="icon"
               title="Configurações"
+              onClick={() => navigate('/definicoes')}
             >
               <Settings className="h-5 w-5" />
             </Button>

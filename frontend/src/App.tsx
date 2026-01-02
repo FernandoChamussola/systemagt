@@ -13,6 +13,7 @@ import Dividas from './pages/Dividas';
 import DividaDetalhes from './pages/DividaDetalhes';
 import Notificacoes from './pages/Notificacoes';
 import Relatorios from './pages/Relatorios';
+import Definicoes from './pages/Definicoes';
 
 const queryClient = new QueryClient();
 
@@ -90,6 +91,16 @@ function App() {
                 <ProtectedRoute>
                   <AppLayout>
                     <Relatorios />
+                  </AppLayout>
+                </ProtectedRoute>
+              }
+            />
+           <Route 
+              path="/definicoes"
+              element={
+                <ProtectedRoute>
+                  <AppLayout>
+                    <Definicoes />
                   </AppLayout>
                 </ProtectedRoute>
               }
