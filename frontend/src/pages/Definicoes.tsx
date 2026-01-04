@@ -35,7 +35,7 @@ const TUTORIAIS: Tutorial[] = [
     titulo: 'Introdução ao Sistema',
     descricao: 'Conheça o SystemAGT e suas principais funcionalidades',
     videoUrl: '/frontend/midia/systemAGT.mp4',
-    duracao: '5:30',
+    duracao: '6:47',
     disponivel: true,
   },
   {
