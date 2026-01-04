@@ -34,8 +34,8 @@ const TUTORIAIS: Tutorial[] = [
     id: 'intro',
     titulo: 'Introdução ao Sistema',
     descricao: 'Conheça o SystemAGT e suas principais funcionalidades',
-    videoUrl: '/frontend/midia/systemAGT.mp4',
-    duracao: '6:47',
+    videoUrl: 'https://drive.google.com/file/d/1FQBAoCd6Q4f1HEClYpdXM17C6BUzQF8P/preview',
+    duracao: '5:30',
     disponivel: true,
   },
   {
@@ -527,14 +527,13 @@ export default function Definicoes() {
                 <div className="space-y-4">
                   {/* Player de Vídeo */}
                   <div className="aspect-video rounded-lg overflow-hidden bg-black">
-                    <video
+                    <iframe
                       src={tutorialSelecionado.videoUrl || ''}
                       className="w-full h-full"
-                      controls
-                      controlsList="nodownload"
-                    >
-                      Seu navegador não suporta o elemento de vídeo.
-                    </video>
+                      allow="autoplay"
+                      allowFullScreen
+                      title={tutorialSelecionado.titulo}
+                    />
                   </div>
 
                   {/* Outros Tutoriais */}
