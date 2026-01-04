@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { debtorApi, DebtStatus } from '@/lib/api';
+import { debtorApi, DebtStatus, reportApi } from '@/lib/api';
 
 export default function Relatorios() {
   const { toast } = useToast();
@@ -49,36 +49,28 @@ export default function Relatorios() {
     loadDevedores();
   });
 
+  const downloadBlob = (blob: Blob, filename: string) => {
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+  };
+
   const gerarRelatorioDividas = async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams();
-      if (dividaFilters.devedorId) params.append('devedorId', dividaFilters.devedorId);
-      if (dividaFilters.status) params.append('status', dividaFilters.status);
-      if (dividaFilters.dataInicio) params.append('dataInicio', dividaFilters.dataInicio.toISOString());
-      if (dividaFilters.dataFim) params.append('dataFim', dividaFilters.dataFim.toISOString());
+      const blob = await reportApi.downloadDividas({
+        devedorId: dividaFilters.devedorId || undefined,
+        status: dividaFilters.status || undefined,
+        dataInicio: dividaFilters.dataInicio,
+        dataFim: dividaFilters.dataFim,
+      });
 
-      const token = localStorage.getItem('token');
-      const response = await fetch(
-        `http://localhost:3000/api/reports/dividas?${params.toString()}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      if (!response.ok) throw new Error('Erro ao gerar relatório');
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `relatorio-dividas-${Date.now()}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
+      downloadBlob(blob, `relatorio-dividas-${Date.now()}.pdf`);
 
       toast({
         title: 'Relatório gerado!',
@@ -98,33 +90,14 @@ export default function Relatorios() {
   const gerarRelatorioPagamentos = async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams();
-      if (pagamentoFilters.devedorId) params.append('devedorId', pagamentoFilters.devedorId);
-      if (pagamentoFilters.dividaId) params.append('dividaId', pagamentoFilters.dividaId);
-      if (pagamentoFilters.dataInicio) params.append('dataInicio', pagamentoFilters.dataInicio.toISOString());
-      if (pagamentoFilters.dataFim) params.append('dataFim', pagamentoFilters.dataFim.toISOString());
+      const blob = await reportApi.downloadPagamentos({
+        devedorId: pagamentoFilters.devedorId || undefined,
+        dividaId: pagamentoFilters.dividaId || undefined,
+        dataInicio: pagamentoFilters.dataInicio,
+        dataFim: pagamentoFilters.dataFim,
+      });
 
-      const token = localStorage.getItem('token');
-      const response = await fetch(
-        `http://localhost:3000/api/reports/pagamentos?${params.toString()}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      if (!response.ok) throw new Error('Erro ao gerar relatório');
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `relatorio-pagamentos-${Date.now()}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
+      downloadBlob(blob, `relatorio-pagamentos-${Date.now()}.pdf`);
 
       toast({
         title: 'Relatório gerado!',
@@ -144,24 +117,8 @@ export default function Relatorios() {
   const gerarRelatorioDevedores = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:3000/api/reports/devedores', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) throw new Error('Erro ao gerar relatório');
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `relatorio-devedores-${Date.now()}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
+      const blob = await reportApi.downloadDevedores();
+      downloadBlob(blob, `relatorio-devedores-${Date.now()}.pdf`);
 
       toast({
         title: 'Relatório gerado!',
@@ -181,24 +138,8 @@ export default function Relatorios() {
   const gerarRelatorioCompleto = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:3000/api/reports/completo', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) throw new Error('Erro ao gerar relatório');
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `relatorio-completo-${Date.now()}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
+      const blob = await reportApi.downloadCompleto();
+      downloadBlob(blob, `relatorio-completo-${Date.now()}.pdf`);
 
       toast({
         title: 'Relatório gerado!',

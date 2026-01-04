@@ -376,4 +376,59 @@ export const collateralApi = {
   },
 };
 
+
+// Adicione estas funções NO FINAL do seu arquivo lib/api.ts existente
+
+export const reportApi = {
+  downloadDividas: async (params?: {
+    devedorId?: string;
+    status?: DebtStatus;
+    dataInicio?: Date;
+    dataFim?: Date;
+  }): Promise<Blob> => {
+    const queryParams = new URLSearchParams();
+    if (params?.devedorId) queryParams.append('devedorId', params.devedorId);
+    if (params?.status) queryParams.append('status', params.status);
+    if (params?.dataInicio) queryParams.append('dataInicio', params.dataInicio.toISOString());
+    if (params?.dataFim) queryParams.append('dataFim', params.dataFim.toISOString());
+
+    const response = await api.get(`/reports/dividas?${queryParams.toString()}`, {
+      responseType: 'blob',
+    });
+    return response.data;
+  },
+
+  downloadPagamentos: async (params?: {
+    devedorId?: string;
+    dividaId?: string;
+    dataInicio?: Date;
+    dataFim?: Date;
+  }): Promise<Blob> => {
+    const queryParams = new URLSearchParams();
+    if (params?.devedorId) queryParams.append('devedorId', params.devedorId);
+    if (params?.dividaId) queryParams.append('dividaId', params.dividaId);
+    if (params?.dataInicio) queryParams.append('dataInicio', params.dataInicio.toISOString());
+    if (params?.dataFim) queryParams.append('dataFim', params.dataFim.toISOString());
+
+    const response = await api.get(`/reports/pagamentos?${queryParams.toString()}`, {
+      responseType: 'blob',
+    });
+    return response.data;
+  },
+
+  downloadDevedores: async (): Promise<Blob> => {
+    const response = await api.get('/reports/devedores', {
+      responseType: 'blob',
+    });
+    return response.data;
+  },
+
+  downloadCompleto: async (): Promise<Blob> => {
+    const response = await api.get('/reports/completo', {
+      responseType: 'blob',
+    });
+    return response.data;
+  },
+};
+
 export default api;
