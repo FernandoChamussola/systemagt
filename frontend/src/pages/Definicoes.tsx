@@ -34,7 +34,7 @@ const TUTORIAIS: Tutorial[] = [
     id: 'intro',
     titulo: 'Introdução ao Sistema',
     descricao: 'Conheça o SystemAGT e suas principais funcionalidades',
-    videoUrl: 'https://drive.google.com/file/d/1FQBAoCd6Q4f1HEClYpdXM17C6BUzQF8P/preview',
+    videoUrl: '/systemAGT.mp4',
     duracao: '5:30',
     disponivel: true,
   },
