@@ -5,7 +5,6 @@ services:
     restart: unless-stopped
     networks:
       - traefik-public
-    # NÃO expõe portas - PostgreSQL fica interno
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-systemagt_user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -27,7 +26,6 @@ services:
     restart: unless-stopped
     networks:
       - traefik-public
-    # NÃO expõe portas - API fica interna, Traefik gerencia
     environment:
       NODE_ENV: production
       DATABASE_URL: postgresql://${POSTGRES_USER:-systemagt_user}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-systemagt_db}?schema=public
@@ -39,6 +37,26 @@ services:
         condition: service_healthy
     volumes:
       - ./backend/uploads:/app/uploads
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    labels:
+      # LABELS DO TRAEFIK PARA A API
+      - "traefik.enable=true"
+      # Rota para /api/* vai para o backend
+      - "traefik.http.routers.systemagt-api.rule=Host(`systemagt.duckdns.org`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.systemagt-api.entrypoints=websecure"
+      - "traefik.http.routers.systemagt-api.tls.certresolver=letsencrypt"
+      - "traefik.http.services.systemagt-api.loadbalancer.server.port=3000"
+      - "traefik.http.routers.systemagt-api.priority=10"
+      # Rota para /uploads/* também vai para o backend
+      - "traefik.http.routers.systemagt-uploads.rule=Host(`systemagt.duckdns.org`) && PathPrefix(`/uploads`)"
+      - "traefik.http.routers.systemagt-uploads.entrypoints=websecure"
+      - "traefik.http.routers.systemagt-uploads.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.systemagt-uploads.priority=10"
 
   frontend:
     build:
@@ -48,20 +66,21 @@ services:
     restart: unless-stopped
     networks:
       - traefik-public
-    # NÃO expõe portas - Traefik gerencia tudo
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     labels:
-      # TRAEFIK LABELS - ATENÇÃO AO DOMÍNIO!
       - "traefik.enable=true"
+      # Frontend pega tudo que não for /api ou /uploads
       - "traefik.http.routers.systemagt.rule=Host(`systemagt.duckdns.org`)"
       - "traefik.http.routers.systemagt.entrypoints=websecure"
       - "traefik.http.routers.systemagt.tls.certresolver=letsencrypt"
       - "traefik.http.services.systemagt.loadbalancer.server.port=80"
+      - "traefik.http.routers.systemagt.priority=1"
 
 volumes:
   postgres-data:
 
 networks:
   traefik-public:
-    external: true  # Network criada externamente
+    external: true
