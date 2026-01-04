@@ -1,9 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
-import { useToast } from '@/hooks/use-toast';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
   QrCode,
   CheckCircle,
@@ -17,6 +12,7 @@ import {
   Signal,
   ShieldCheck,
   X,
+  Lock,
 } from 'lucide-react';
 
 type UltimaConexao = {
@@ -28,8 +24,9 @@ type Tutorial = {
   id: string;
   titulo: string;
   descricao: string;
-  videoUrl: string;
+  videoUrl: string | null;
   duracao: string;
+  disponivel: boolean;
 };
 
 const TUTORIAIS: Tutorial[] = [
@@ -37,49 +34,53 @@ const TUTORIAIS: Tutorial[] = [
     id: 'intro',
     titulo: 'Introdução ao Sistema',
     descricao: 'Conheça o SystemAGT e suas principais funcionalidades',
-    videoUrl: 'https://www.youtube.com/embed/SEU_VIDEO_ID_1',
+    videoUrl: '/frontend/midia/systemAGT.mp4',
     duracao: '5:30',
+    disponivel: true,
   },
   {
     id: 'whatsapp',
     titulo: 'Conectar WhatsApp',
     descricao: 'Aprenda a conectar seu WhatsApp ao sistema passo a passo',
-    videoUrl: 'https://www.youtube.com/embed/SEU_VIDEO_ID_2',
+    videoUrl: null,
     duracao: '3:45',
+    disponivel: false,
   },
   {
     id: 'devedores',
     titulo: 'Gerenciar Devedores',
     descricao: 'Como cadastrar e gerenciar seus devedores',
-    videoUrl: 'https://www.youtube.com/embed/SEU_VIDEO_ID_3',
+    videoUrl: null,
     duracao: '4:20',
+    disponivel: false,
   },
   {
     id: 'dividas',
     titulo: 'Criar e Acompanhar Dívidas',
     descricao: 'Registre dívidas e acompanhe pagamentos',
-    videoUrl: 'https://www.youtube.com/embed/SEU_VIDEO_ID_4',
+    videoUrl: null,
     duracao: '6:15',
+    disponivel: false,
   },
   {
     id: 'notificacoes',
     titulo: 'Sistema de Notificações',
     descricao: 'Configure notificações automáticas via WhatsApp',
-    videoUrl: 'https://www.youtube.com/embed/SEU_VIDEO_ID_5',
+    videoUrl: null,
     duracao: '4:50',
+    disponivel: false,
   },
   {
     id: 'relatorios',
     titulo: 'Gerar Relatórios',
     descricao: 'Exporte relatórios em PDF com análises completas',
-    videoUrl: 'https://www.youtube.com/embed/SEU_VIDEO_ID_6',
+    videoUrl: null,
     duracao: '3:30',
+    disponivel: false,
   },
 ];
 
 export default function Definicoes() {
-  const { toast } = useToast();
-
   const [numero, setNumero] = useState('');
   const [status, setStatus] = useState<string>('desconectado');
   const [qr, setQr] = useState<string | null>(null);
@@ -87,54 +88,54 @@ export default function Definicoes() {
   const [ultimaConexao, setUltimaConexao] = useState<UltimaConexao | null>(null);
   const [modalAberto, setModalAberto] = useState(false);
   const [tutorialSelecionado, setTutorialSelecionado] = useState<Tutorial | null>(null);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [isSending, setIsSending] = useState(false);
+  const [toastMessage, setToastMessage] = useState<{ title: string; description: string; type: 'success' | 'error' } | null>(null);
 
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    const saved = localStorage.getItem('ultima_conexao_whatsapp');
-    if (saved) setUltimaConexao(JSON.parse(saved));
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (pollingRef.current) clearInterval(pollingRef.current);
-    };
-  }, []);
+    if (toastMessage) {
+      const timer = setTimeout(() => setToastMessage(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [toastMessage]);
 
   function guardarUltimaConexao(status: 'sucesso' | 'erro') {
     const data = new Date().toLocaleString();
     const info = { status, data };
-    localStorage.setItem('ultima_conexao_whatsapp', JSON.stringify(info));
     setUltimaConexao(info);
   }
 
-  const conectarMutation = useMutation({
-    mutationFn: async () => {
+  async function conectar() {
+    setIsConnecting(true);
+    try {
       const res = await fetch('https://wtsapi.duckdns.org/connect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ numero }),
       });
       if (!res.ok) throw new Error();
-      return res.json();
-    },
-    onSuccess: (data) => {
+      const data = await res.json();
+      
       if (data.qr) setQr(data.qr);
       guardarUltimaConexao('sucesso');
       iniciarPolling();
-    },
-    onError: () => {
+    } catch (error) {
       guardarUltimaConexao('erro');
-      toast({
+      setToastMessage({
         title: 'Erro na conexão',
         description: 'Não foi possível conectar ao WhatsApp.',
-        variant: 'destructive',
+        type: 'error'
       });
-    },
-  });
+    } finally {
+      setIsConnecting(false);
+    }
+  }
 
-  const enviarTesteMutation = useMutation({
-    mutationFn: async () => {
+  async function enviarTeste() {
+    setIsSending(true);
+    try {
       const res = await fetch('https://wtsapi.duckdns.org/enviar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -145,16 +146,23 @@ export default function Definicoes() {
         }),
       });
       if (!res.ok) throw new Error();
-      return res.json();
-    },
-    onSuccess: () => {
-      toast({
+      
+      setToastMessage({
         title: 'Mensagem enviada!',
         description: 'Mensagem de teste enviada com sucesso.',
+        type: 'success'
       });
       setMensagem('');
-    },
-  });
+    } catch (error) {
+      setToastMessage({
+        title: 'Erro',
+        description: 'Não foi possível enviar a mensagem.',
+        type: 'error'
+      });
+    } finally {
+      setIsSending(false);
+    }
+  }
 
   function iniciarPolling() {
     if (!numero) return;
@@ -183,6 +191,14 @@ export default function Definicoes() {
   }
 
   function abrirTutorial(tutorial: Tutorial) {
+    if (!tutorial.disponivel) {
+      setToastMessage({
+        title: 'Em breve',
+        description: 'Este tutorial estará disponível em breve!',
+        type: 'success'
+      });
+      return;
+    }
     setTutorialSelecionado(tutorial);
     setModalAberto(true);
   }
@@ -193,7 +209,21 @@ export default function Definicoes() {
   }
 
   return (
-    <div className="space-y-6 max-w-6xl">
+    <div className="space-y-6 max-w-6xl p-6">
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed top-4 right-4 z-50 max-w-md animate-in slide-in-from-top">
+          <div className={`rounded-lg border p-4 shadow-lg ${
+            toastMessage.type === 'success' 
+              ? 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800' 
+              : 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800'
+          }`}>
+            <h3 className="font-semibold mb-1">{toastMessage.title}</h3>
+            <p className="text-sm text-muted-foreground">{toastMessage.description}</p>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
@@ -202,15 +232,13 @@ export default function Definicoes() {
             Gerencie sua conexão WhatsApp e aprenda a usar todas as funcionalidades
           </p>
         </div>
-        <Button
-          variant="outline"
-          size="lg"
+        <button
           onClick={() => setModalAberto(true)}
-          className="gap-2"
+          className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-11 px-8 gap-2"
         >
           <PlayCircle className="w-5 h-5" />
           Ver Tutoriais
-        </Button>
+        </button>
       </div>
 
       {/* Cards de Status */}
@@ -304,41 +332,41 @@ export default function Definicoes() {
             <Smartphone className="w-5 h-5 text-green-600" />
             Conectar WhatsApp
           </h3>
-          <Button
-            variant="ghost"
-            size="sm"
+          <button
             onClick={() => abrirTutorial(TUTORIAIS[1])}
-            className="gap-2"
+            disabled
+            className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 hover:bg-accent hover:text-accent-foreground h-9 px-4 py-2 gap-2"
           >
             <Video className="w-4 h-4" />
-            Ver tutorial
-          </Button>
+            Ver tutorial (em breve)
+          </button>
         </div>
 
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="numero">Número com DDD e código do país</Label>
-            <Input
+            <label htmlFor="numero" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+              Número com DDD e código do país
+            </label>
+            <input
               id="numero"
               placeholder="25884xxxxxxx"
               value={numero}
               onChange={(e) => setNumero(e.target.value)}
-              className="font-mono"
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 font-mono"
             />
             <p className="text-xs text-muted-foreground">
               Exemplo: 25884xxxxxxx (Moçambique)
             </p>
           </div>
 
-          <Button
-            onClick={() => conectarMutation.mutate()}
-            disabled={conectarMutation.isPending || !numero}
-            className="w-full gap-2"
-            size="lg"
+          <button
+            onClick={conectar}
+            disabled={isConnecting || !numero}
+            className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-11 w-full gap-2"
           >
             <QrCode className="h-5 w-5" />
-            {conectarMutation.isPending ? 'Conectando...' : 'Gerar QR Code'}
-          </Button>
+            {isConnecting ? 'Conectando...' : 'Gerar QR Code'}
+          </button>
         </div>
 
         {qr && (
@@ -377,24 +405,26 @@ export default function Definicoes() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="mensagem">Mensagem de teste</Label>
-            <Input
+            <label htmlFor="mensagem" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+              Mensagem de teste
+            </label>
+            <input
               id="mensagem"
               placeholder="Olá! Testando o sistema..."
               value={mensagem}
               onChange={(e) => setMensagem(e.target.value)}
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             />
           </div>
 
-          <Button
-            onClick={() => enviarTesteMutation.mutate()}
-            disabled={enviarTesteMutation.isPending || !mensagem}
-            className="w-full gap-2"
-            size="lg"
+          <button
+            onClick={enviarTeste}
+            disabled={isSending || !mensagem}
+            className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-11 w-full gap-2"
           >
             <Send className="h-5 w-5" />
-            {enviarTesteMutation.isPending ? 'Enviando...' : 'Enviar Mensagem de Teste'}
-          </Button>
+            {isSending ? 'Enviando...' : 'Enviar Mensagem de Teste'}
+          </button>
         </div>
       )}
 
@@ -417,14 +447,40 @@ export default function Definicoes() {
             <button
               key={tutorial.id}
               onClick={() => abrirTutorial(tutorial)}
-              className="bg-muted hover:bg-muted/80 border border-border rounded-lg p-4 transition-all text-left group"
+              disabled={!tutorial.disponivel}
+              className={`bg-muted border border-border rounded-lg p-4 transition-all text-left group relative ${
+                tutorial.disponivel
+                  ? 'hover:bg-muted/80 cursor-pointer'
+                  : 'opacity-60 cursor-not-allowed'
+              }`}
             >
+              {!tutorial.disponivel && (
+                <div className="absolute top-2 right-2">
+                  <Lock className="w-4 h-4 text-muted-foreground" />
+                </div>
+              )}
               <div className="flex items-start gap-3 mb-3">
-                <div className="p-2 bg-red-100 dark:bg-red-900/20 rounded-lg group-hover:scale-110 transition-transform">
-                  <Video className="w-5 h-5 text-red-600 dark:text-red-400" />
+                <div
+                  className={`p-2 rounded-lg transition-transform ${
+                    tutorial.disponivel
+                      ? 'bg-red-100 dark:bg-red-900/20 group-hover:scale-110'
+                      : 'bg-gray-100 dark:bg-gray-900/20'
+                  }`}
+                >
+                  <Video
+                    className={`w-5 h-5 ${
+                      tutorial.disponivel
+                        ? 'text-red-600 dark:text-red-400'
+                        : 'text-gray-400'
+                    }`}
+                  />
                 </div>
                 <div className="flex-1">
-                  <h4 className="font-semibold mb-1 group-hover:text-primary transition-colors text-sm">
+                  <h4
+                    className={`font-semibold mb-1 text-sm ${
+                      tutorial.disponivel ? 'group-hover:text-primary transition-colors' : ''
+                    }`}
+                  >
                     {tutorial.titulo}
                   </h4>
                   <p className="text-xs text-muted-foreground">{tutorial.duracao}</p>
@@ -433,6 +489,11 @@ export default function Definicoes() {
               <p className="text-xs text-muted-foreground line-clamp-2">
                 {tutorial.descricao}
               </p>
+              {!tutorial.disponivel && (
+                <p className="text-xs text-amber-600 dark:text-amber-400 mt-2 font-medium">
+                  Em breve
+                </p>
+              )}
             </button>
           ))}
         </div>
@@ -466,12 +527,14 @@ export default function Definicoes() {
                 <div className="space-y-4">
                   {/* Player de Vídeo */}
                   <div className="aspect-video rounded-lg overflow-hidden bg-black">
-                    <iframe
-                      src={tutorialSelecionado.videoUrl}
+                    <video
+                      src={tutorialSelecionado.videoUrl || ''}
                       className="w-full h-full"
-                      allowFullScreen
-                      title={tutorialSelecionado.titulo}
-                    />
+                      controls
+                      controlsList="nodownload"
+                    >
+                      Seu navegador não suporta o elemento de vídeo.
+                    </video>
                   </div>
 
                   {/* Outros Tutoriais */}
@@ -481,11 +544,24 @@ export default function Definicoes() {
                       {TUTORIAIS.filter((t) => t.id !== tutorialSelecionado.id).map((tutorial) => (
                         <button
                           key={tutorial.id}
-                          onClick={() => setTutorialSelecionado(tutorial)}
-                          className="bg-muted hover:bg-muted/80 rounded-lg p-3 text-left text-sm transition-colors"
+                          onClick={() => tutorial.disponivel && setTutorialSelecionado(tutorial)}
+                          disabled={!tutorial.disponivel}
+                          className={`rounded-lg p-3 text-left text-sm transition-colors relative ${
+                            tutorial.disponivel
+                              ? 'bg-muted hover:bg-muted/80 cursor-pointer'
+                              : 'bg-muted/50 cursor-not-allowed opacity-60'
+                          }`}
                         >
+                          {!tutorial.disponivel && (
+                            <Lock className="w-3 h-3 text-muted-foreground absolute top-2 right-2" />
+                          )}
                           <p className="font-medium text-xs mb-1">{tutorial.titulo}</p>
                           <p className="text-xs text-muted-foreground">{tutorial.duracao}</p>
+                          {!tutorial.disponivel && (
+                            <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                              Em breve
+                            </p>
+                          )}
                         </button>
                       ))}
                     </div>
@@ -497,11 +573,33 @@ export default function Definicoes() {
                     <button
                       key={tutorial.id}
                       onClick={() => abrirTutorial(tutorial)}
-                      className="bg-muted hover:bg-muted/80 border border-border rounded-lg p-4 transition-all text-left group"
+                      disabled={!tutorial.disponivel}
+                      className={`border border-border rounded-lg p-4 transition-all text-left group relative ${
+                        tutorial.disponivel
+                          ? 'bg-muted hover:bg-muted/80 cursor-pointer'
+                          : 'bg-muted/50 cursor-not-allowed opacity-60'
+                      }`}
                     >
+                      {!tutorial.disponivel && (
+                        <div className="absolute top-3 right-3">
+                          <Lock className="w-4 h-4 text-muted-foreground" />
+                        </div>
+                      )}
                       <div className="flex items-start gap-3 mb-2">
-                        <div className="p-2 bg-red-100 dark:bg-red-900/20 rounded-lg">
-                          <Video className="w-5 h-5 text-red-600 dark:text-red-400" />
+                        <div
+                          className={`p-2 rounded-lg ${
+                            tutorial.disponivel
+                              ? 'bg-red-100 dark:bg-red-900/20'
+                              : 'bg-gray-100 dark:bg-gray-900/20'
+                          }`}
+                        >
+                          <Video
+                            className={`w-5 h-5 ${
+                              tutorial.disponivel
+                                ? 'text-red-600 dark:text-red-400'
+                                : 'text-gray-400'
+                            }`}
+                          />
                         </div>
                         <div className="flex-1">
                           <h4 className="font-semibold mb-1">{tutorial.titulo}</h4>
@@ -509,6 +607,11 @@ export default function Definicoes() {
                         </div>
                       </div>
                       <p className="text-sm text-muted-foreground">{tutorial.descricao}</p>
+                      {!tutorial.disponivel && (
+                        <p className="text-xs text-amber-600 dark:text-amber-400 mt-2 font-medium">
+                          Em breve
+                        </p>
+                      )}
                     </button>
                   ))}
                 </div>

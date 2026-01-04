@@ -62,8 +62,8 @@ export default function Sidebar({ className, onItemClick }: SidebarProps) {
       {/* Footer */}
       <div className="p-4 border-t border-border">
         <div className="px-4 py-3 bg-primary/5 rounded-lg">
-          <p className="text-xs text-muted-foreground">Versão 1.0.0</p>
-          <p className="text-xs text-muted-foreground mt-1">Sistema desenvolvido com 💚</p>
+          <p className="text-xs text-muted-foreground">Versão 1.1.2(beta)</p>
+          <p className="text-xs text-muted-foreground mt-1">© 2023 DebtTracker. All rights reserved.</p>
         </div>
       </div>
     </aside>
