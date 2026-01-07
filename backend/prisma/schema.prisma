@@ -7,18 +7,26 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum UserRole {
+  USER
+  ADMIN
+}
+
 model User {
   id        String   @id @default(uuid())
   nome      String
   email     String   @unique
   senha     String
   telefone  String?
+  role      UserRole @default(USER)
+  isActive  Boolean  @default(true) @map("is_active")
   criadoEm  DateTime @default(now()) @map("criado_em")
   atualizadoEm DateTime @updatedAt @map("atualizado_em")
 
-  devedores     Debtor[]
-  dividas       Debt[]
-  notificacoes  Notification[]
+  devedores            Debtor[]
+  dividas              Debt[]
+  notificacoes         Notification[]
+  passwordResetTokens  PasswordResetToken[]
 
   @@map("users")
 }
@@ -130,4 +138,22 @@ model Notification {
   divida        Debt?              @relation(fields: [dividaId], references: [id], onDelete: Cascade)
 
   @@map("notifications")
+}
+
+model PasswordResetToken {
+  id            String   @id @default(uuid())
+  userId        String   @map("usuario_id")
+  telefone      String
+  codigo        String
+  tentativas    Int      @default(0)
+  usado         Boolean  @default(false)
+  expiraEm      DateTime @map("expira_em")
+  criadoEm      DateTime @default(now()) @map("criado_em")
+
+  usuario       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([codigo])
+  @@index([expiraEm])
+  @@map("password_reset_tokens")
 }

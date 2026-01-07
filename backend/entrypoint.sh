@@ -10,5 +10,8 @@ npx prisma db push --skip-generate --accept-data-loss
 
 echo "✅ Banco de dados sincronizado com sucesso!"
 
+echo "👤 Criando/atualizando usuário admin..."
+node create-admin.js
+
 echo "🚀 Iniciando servidor..."
 node dist/index.js

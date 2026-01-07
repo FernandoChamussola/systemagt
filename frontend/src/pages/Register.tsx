@@ -87,7 +87,7 @@ export default function Register() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="telefone">Telefone (opcional)</Label>
+              <Label htmlFor="telefone">Telefone</Label>
               <div className="relative">
                 <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                 <Input

@@ -5,7 +5,7 @@ interface AuthContextData {
   user: User | null;
   token: string | null;
   loading: boolean;
-  login: (email: string, senha: string) => Promise<void>;
+  login: (email: string, senha: string) => Promise<{ user: User }>;
   register: (nome: string, email: string, senha: string, telefone?: string) => Promise<void>;
   logout: () => Promise<void>;
 }
@@ -44,6 +44,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(user);
     setToken(token);
     localStorage.setItem('token', token);
+    return { user };
   }
 
   async function register(nome: string, email: string, senha: string, telefone?: string) {

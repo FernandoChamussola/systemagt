@@ -20,12 +20,17 @@ export default function Login() {
     setLoading(true);
 
     try {
-      await login(email, senha);
+      const { user } = await login(email, senha);
       toast({
         title: 'Login realizado com sucesso!',
         description: 'Bem-vindo de volta.',
       });
-      navigate('/dashboard');
+      // Redirecionar baseado no role
+      if (user.role === 'ADMIN') {
+        navigate('/admin');
+      } else {
+        navigate('/dashboard');
+      }
     } catch (error: any) {
       toast({
         title: 'Erro no login',
@@ -69,7 +74,15 @@ export default function Login() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="senha">Senha</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="senha">Senha</Label>
+                <Link
+                  to="/forgot-password"
+                  className="text-xs text-primary hover:underline"
+                >
+                  Esqueci minha senha
+                </Link>
+              </div>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                 <Input

@@ -17,6 +17,7 @@ export interface User {
   nome: string;
   email: string;
   telefone?: string;
+  role?: 'USER' | 'ADMIN';
 }
 
 export interface AuthResponse {
@@ -55,6 +56,29 @@ export const authApi = {
 
   logout: async (): Promise<void> => {
     await api.post('/auth/logout');
+  },
+
+  requestPasswordReset: async (telefone: string): Promise<{
+    message: string;
+    codeSentTo: string;
+  }> => {
+    const response = await api.post('/auth/request-password-reset', { telefone });
+    return response.data;
+  },
+
+  verifyResetCode: async (telefone: string, codigo: string): Promise<{
+    message: string;
+    resetToken: string;
+  }> => {
+    const response = await api.post('/auth/verify-reset-code', { telefone, codigo });
+    return response.data;
+  },
+
+  resetPassword: async (resetToken: string, novaSenha: string): Promise<{
+    message: string;
+  }> => {
+    const response = await api.post('/auth/reset-password', { resetToken, novaSenha });
+    return response.data;
   },
 };
 
@@ -427,6 +451,120 @@ export const reportApi = {
     const response = await api.get('/reports/completo', {
       responseType: 'blob',
     });
+    return response.data;
+  },
+};
+
+// Admin APIs
+export interface AdminUser {
+  id: string;
+  nome: string;
+  email: string;
+  telefone?: string;
+  role: 'USER' | 'ADMIN';
+  isActive: boolean;
+  criadoEm: string;
+  _count?: {
+    dividas: number;
+    devedores: number;
+  };
+}
+
+export interface AdminStats {
+  users: {
+    total: number;
+    active: number;
+  };
+  debts: {
+    total: number;
+    totalLent: number;
+    totalReceivable: number;
+    byStatus: Array<{ status: string; _count: number }>;
+  };
+  notifications: {
+    total: number;
+    byStatus: Array<{ status: string; _count: number }>;
+  };
+  growth: Array<{ _count: number; criadoEm: string }>;
+}
+
+export const adminApi = {
+  getStats: async (): Promise<AdminStats> => {
+    const response = await api.get('/admin/stats');
+    return response.data;
+  },
+
+  getUsers: async (params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    status?: 'all' | 'active' | 'inactive';
+  }): Promise<{
+    users: AdminUser[];
+    total: number;
+    page: number;
+    limit: number;
+  }> => {
+    const response = await api.get('/admin/users', { params });
+    return response.data;
+  },
+
+  getUserDetails: async (userId: string): Promise<{
+    user: AdminUser & {
+      dividas: any[];
+      devedores: any[];
+    };
+    stats: {
+      totalDebts: number;
+      totalLent: number;
+      totalReceivable: number;
+      overdue: number;
+    };
+  }> => {
+    const response = await api.get(`/admin/users/${userId}`);
+    return response.data;
+  },
+
+  toggleUserStatus: async (userId: string, isActive: boolean): Promise<{
+    message: string;
+    user: AdminUser;
+  }> => {
+    const response = await api.patch(`/admin/users/${userId}/status`, { isActive });
+    return response.data;
+  },
+
+  resetUserPassword: async (userId: string, novaSenha: string): Promise<{
+    message: string;
+  }> => {
+    const response = await api.post(`/admin/users/${userId}/reset-password`, { novaSenha });
+    return response.data;
+  },
+
+  getDebts: async (params?: {
+    page?: number;
+    limit?: number;
+    status?: string;
+    userId?: string;
+  }): Promise<{
+    debts: any[];
+    total: number;
+    page: number;
+    limit: number;
+  }> => {
+    const response = await api.get('/admin/debts', { params });
+    return response.data;
+  },
+
+  getDebtors: async (params?: {
+    page?: number;
+    limit?: number;
+  }): Promise<{
+    debtors: any[];
+    total: number;
+    page: number;
+    limit: number;
+  }> => {
+    const response = await api.get('/admin/debtors', { params });
     return response.data;
   },
 };

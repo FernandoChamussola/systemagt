@@ -10,6 +10,7 @@ import collateralRoutes from './routes/collateralRoutes';
 import dashboardRoutes from './routes/dashboardRoutes';
 import notificationRoutes from './routes/notificationRoutes';
 import reportRoutes from './routes/reportRoutes';
+import adminRoutes from './routes/admin';
 import { iniciarCronNotificacoes } from './services/notificationCron';
 import { iniciarCronStatusDividas } from './services/debtStatusCron';
 
@@ -43,6 +44,7 @@ app.get('/health', (req, res) => {
 
 // Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/admin', adminRoutes);
 app.use('/api/debtors', debtorRoutes);
 app.use('/api/debts', debtRoutes);
 app.use('/api/payments', paymentRoutes);

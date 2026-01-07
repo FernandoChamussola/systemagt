@@ -18,6 +18,7 @@ export function authMiddleware(req: AuthRequest, res: Response, next: NextFuncti
 
     const decoded = verifyToken(token);
     req.userId = decoded.userId;
+    req.userRole = decoded.role;
 
     next();
   } catch (error) {

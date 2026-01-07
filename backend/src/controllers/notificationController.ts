@@ -17,6 +17,7 @@ dns.setDefaultResultOrder('ipv4first');
 function formatarTelefone(telefone: string): string {
   // Remove espaços, traços e parênteses
   let telefoneFormatado = telefone.replace(/[\s\-\(\)]/g, '');
+  
 
   // Remove o + se houver
   telefoneFormatado = telefoneFormatado.replace('+', '');
