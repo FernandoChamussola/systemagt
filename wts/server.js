@@ -18,6 +18,46 @@ app.use(express.json());
 const PORT = process.env.PORT || 3002;
 const AUTH_BASE_PATH = "./auth_sessions";
 
+// ============ SISTEMA DE LOGS DETALHADOS ============
+
+function getTimestamp() {
+  return new Date().toISOString().replace('T', ' ').split('.')[0];
+}
+
+function log(type, context, message, data = null) {
+  const timestamp = getTimestamp();
+  const prefix = {
+    'INFO': '\x1b[36m[INFO]\x1b[0m',
+    'SUCCESS': '\x1b[32m[OK]\x1b[0m',
+    'WARN': '\x1b[33m[WARN]\x1b[0m',
+    'ERROR': '\x1b[31m[ERRO]\x1b[0m',
+    'DEBUG': '\x1b[35m[DEBUG]\x1b[0m',
+    'SYSTEM': '\x1b[34m[SISTEMA]\x1b[0m',
+    'WTS': '\x1b[32m[WHATSAPP]\x1b[0m',
+    'API': '\x1b[33m[API]\x1b[0m',
+  }[type] || `[${type}]`;
+
+  const contextStr = context ? `\x1b[90m(${context})\x1b[0m` : '';
+  console.log(`${timestamp} ${prefix} ${contextStr} ${message}`);
+
+  if (data) {
+    console.log(`               └─ Dados:`, JSON.stringify(data, null, 2));
+  }
+}
+
+// Middleware para logar requisições
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    const statusColor = res.statusCode >= 400 ? '\x1b[31m' : '\x1b[32m';
+    log('API', req.method, `${req.path} ${statusColor}${res.statusCode}\x1b[0m (${duration}ms)`,
+      req.body && Object.keys(req.body).length ? { body: req.body } : null
+    );
+  });
+  next();
+});
+
 // Garantir que pasta base existe
 if (!fs.existsSync(AUTH_BASE_PATH)) {
   fs.mkdirSync(AUTH_BASE_PATH, { recursive: true });
@@ -69,20 +109,32 @@ async function connectToWhatsApp(numero) {
   const instance = getInstance(numero);
   const authPath = getAuthPath(numero);
 
+  log('WTS', normalized, '═══════════════════════════════════════════════');
+  log('WTS', normalized, `Iniciando processo de conexão WhatsApp`);
+  log('WTS', normalized, `Número: ${normalized}`);
+  log('WTS', normalized, `Pasta de sessão: ${authPath}`);
+
   try {
     instance.status = "connecting";
     instance.qr = null;
 
     // Garantir que pasta de sessão existe
     if (!fs.existsSync(authPath)) {
+      log('INFO', normalized, 'Criando pasta de sessão (primeira conexão)');
       fs.mkdirSync(authPath, { recursive: true });
+    } else {
+      const hasCredentials = fs.existsSync(path.join(authPath, "creds.json"));
+      log('INFO', normalized, `Pasta existente - Credenciais: ${hasCredentials ? 'SIM' : 'NÃO'}`);
     }
 
+    log('INFO', normalized, 'Obtendo versão mais recente do Baileys...');
     const { version } = await fetchLatestBaileysVersion();
-    console.log(`[WhatsApp ${normalized}] Usando versao: ${version.join(".")}`);
+    log('SUCCESS', normalized, `Versão Baileys: ${version.join(".")}`);
 
+    log('INFO', normalized, 'Carregando estado de autenticação...');
     const { state, saveCreds } = await useMultiFileAuthState(authPath);
 
+    log('INFO', normalized, 'Criando socket WhatsApp...');
     const sock = makeWASocket({
       version,
       auth: state,
@@ -91,12 +143,13 @@ async function connectToWhatsApp(numero) {
     });
 
     instance.sock = sock;
+    log('SUCCESS', normalized, 'Socket criado com sucesso');
 
     sock.ev.on("connection.update", async (update) => {
       const { connection, lastDisconnect, qr } = update;
 
       if (qr) {
-        console.log(`[WhatsApp ${normalized}] QR Code gerado`);
+        log('WTS', normalized, '📱 QR Code gerado - Aguardando escaneamento...');
         instance.qr = await QRCode.toDataURL(qr);
         instance.status = "waiting_qr";
       }
@@ -106,13 +159,14 @@ async function connectToWhatsApp(numero) {
         instance.qr = null;
 
         if (reason === DisconnectReason.loggedOut) {
-          console.log(`[WhatsApp ${normalized}] Sessao encerrada pelo usuario`);
+          log('WARN', normalized, '🚪 Sessão encerrada pelo usuário (logout)');
           instance.status = "disconnected";
           instance.sock = null;
           instance.reconnectAttempts = 0;
 
           // Limpar sessão antiga
           if (fs.existsSync(authPath)) {
+            log('INFO', normalized, 'Limpando dados da sessão anterior...');
             fs.rmSync(authPath, { recursive: true, force: true });
             fs.mkdirSync(authPath, { recursive: true });
           }
@@ -125,11 +179,11 @@ async function connectToWhatsApp(numero) {
           instance.reconnectAttempts++;
 
           if (instance.reconnectAttempts <= 3) {
-            console.log(`[WhatsApp ${normalized}] Reconectando... (tentativa ${instance.reconnectAttempts})`);
+            log('WARN', normalized, `🔄 Conexão perdida - Reconectando... (tentativa ${instance.reconnectAttempts}/3)`);
             instance.status = "reconnecting";
             setTimeout(() => connectToWhatsApp(numero), 3000);
           } else {
-            console.log(`[WhatsApp ${normalized}] Max tentativas atingido. Limpando sessao...`);
+            log('ERROR', normalized, '❌ Máximo de tentativas atingido (3). Resetando sessão...');
             instance.status = "disconnected";
             instance.sock = null;
             instance.reconnectAttempts = 0;
@@ -141,17 +195,20 @@ async function connectToWhatsApp(numero) {
             }
           }
         } else if (reason === DisconnectReason.connectionReplaced) {
-          console.log(`[WhatsApp ${normalized}] Conexao substituida`);
+          log('WARN', normalized, '⚠️ Conexão substituída por outra sessão');
           instance.status = "disconnected";
           instance.sock = null;
         } else {
-          console.log(`[WhatsApp ${normalized}] Desconectado (codigo: ${reason})`);
+          log('WARN', normalized, `Desconectado (código: ${reason})`);
           instance.status = "disconnected";
         }
       }
 
       if (connection === "open") {
-        console.log(`[WhatsApp ${normalized}] Conectado com sucesso!`);
+        log('SUCCESS', normalized, '✅ ═══════════════════════════════════════════');
+        log('SUCCESS', normalized, `✅ CONECTADO COM SUCESSO!`);
+        log('SUCCESS', normalized, `✅ Número: ${normalized}`);
+        log('SUCCESS', normalized, '✅ ═══════════════════════════════════════════');
         instance.status = "connected";
         instance.qr = null;
         instance.reconnectAttempts = 0;
@@ -160,7 +217,7 @@ async function connectToWhatsApp(numero) {
 
     sock.ev.on("creds.update", saveCreds);
   } catch (error) {
-    console.error(`[WhatsApp ${normalized}] Erro ao conectar:`, error.message);
+    log('ERROR', normalized, `Erro ao conectar: ${error.message}`);
     instance.status = "disconnected";
   }
 }
@@ -172,7 +229,14 @@ async function sendMessage(origem, destino, mensagem) {
   const normalized = normalizeNumber(origem);
   const instance = instances.get(normalized);
 
+  log('WTS', normalized, '───────────────────────────────────────────────');
+  log('WTS', normalized, `📤 Enviando mensagem`);
+  log('INFO', normalized, `De: ${normalized}`);
+  log('INFO', normalized, `Para: ${destino}`);
+  log('INFO', normalized, `Mensagem: ${mensagem.substring(0, 50)}${mensagem.length > 50 ? '...' : ''}`);
+
   if (!instance || !instance.sock || instance.status !== "connected") {
+    log('ERROR', normalized, `❌ WhatsApp não conectado! Status: ${instance?.status || 'não iniciado'}`);
     throw new Error(`WhatsApp ${normalized} nao conectado`);
   }
 
@@ -181,7 +245,7 @@ async function sendMessage(origem, destino, mensagem) {
   const jid = `${destinoNormalizado}@s.whatsapp.net`;
 
   await instance.sock.sendMessage(jid, { text: mensagem });
-  console.log(`[WhatsApp ${normalized}] Mensagem enviada para ${destinoNormalizado}`);
+  log('SUCCESS', normalized, `✅ Mensagem enviada com sucesso para ${destinoNormalizado}`);
   return true;
 }
 
@@ -189,37 +253,48 @@ async function sendMessage(origem, destino, mensagem) {
  * Carrega todas as sessões salvas ao iniciar
  */
 async function loadSavedSessions() {
-  console.log("[Sistema] Carregando sessoes salvas...");
+  log('SYSTEM', null, '═══════════════════════════════════════════════════════════');
+  log('SYSTEM', null, '🔄 Carregando sessões salvas do disco...');
+  log('SYSTEM', null, `📁 Pasta de sessões: ${AUTH_BASE_PATH}`);
 
   if (!fs.existsSync(AUTH_BASE_PATH)) {
-    console.log("[Sistema] Nenhuma sessao encontrada");
+    log('INFO', null, 'Nenhuma pasta de sessões encontrada');
     return;
   }
 
   const folders = fs.readdirSync(AUTH_BASE_PATH);
+  const authFolders = folders.filter(f => f.startsWith("auth_"));
+  log('INFO', null, `Encontradas ${authFolders.length} pasta(s) de sessão`);
 
-  for (const folder of folders) {
-    if (folder.startsWith("auth_")) {
-      const numero = folder.replace("auth_", "");
-      const authPath = path.join(AUTH_BASE_PATH, folder);
+  let reconnected = 0;
+  let skipped = 0;
 
-      // Verifica se tem arquivos de credenciais
-      const hasCredentials = fs.existsSync(path.join(authPath, "creds.json"));
+  for (const folder of authFolders) {
+    const numero = folder.replace("auth_", "");
+    const authPath = path.join(AUTH_BASE_PATH, folder);
 
-      if (hasCredentials) {
-        console.log(`[Sistema] Reconectando sessao: ${numero}`);
-        try {
-          await connectToWhatsApp(numero);
-          // Aguarda um pouco entre conexões para não sobrecarregar
-          await new Promise(resolve => setTimeout(resolve, 2000));
-        } catch (error) {
-          console.error(`[Sistema] Erro ao reconectar ${numero}:`, error.message);
-        }
+    // Verifica se tem arquivos de credenciais
+    const hasCredentials = fs.existsSync(path.join(authPath, "creds.json"));
+
+    if (hasCredentials) {
+      log('INFO', numero, `Sessão encontrada - Iniciando reconexão...`);
+      try {
+        await connectToWhatsApp(numero);
+        reconnected++;
+        // Aguarda um pouco entre conexões para não sobrecarregar
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      } catch (error) {
+        log('ERROR', numero, `Erro ao reconectar: ${error.message}`);
       }
+    } else {
+      log('INFO', numero, 'Pasta sem credenciais - Ignorando');
+      skipped++;
     }
   }
 
-  console.log("[Sistema] Sessoes carregadas");
+  log('SYSTEM', null, '═══════════════════════════════════════════════════════════');
+  log('SYSTEM', null, `✅ Carregamento concluído: ${reconnected} reconectadas, ${skipped} ignoradas`);
+  log('SYSTEM', null, '═══════════════════════════════════════════════════════════');
 }
 
 // ============ ROTAS DA API ============
@@ -438,7 +513,7 @@ app.post("/reset", async (req, res) => {
       instance.reconnectAttempts = 0;
     }
 
-    console.log(`[WhatsApp ${normalized}] Sessao resetada`);
+    log('SUCCESS', normalized, '🔄 Sessão resetada com sucesso');
     res.json({ success: true, message: "Sessão resetada" });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -479,11 +554,19 @@ app.get("/health", (req, res) => {
 
 // Inicia servidor
 app.listen(PORT, async () => {
-  console.log(`[WhatsApp Service] Servidor rodando na porta ${PORT}`);
-  console.log("[WhatsApp Service] Carregando sessoes existentes...");
+  console.log('');
+  log('SYSTEM', null, '╔══════════════════════════════════════════════════════════╗');
+  log('SYSTEM', null, '║       SYSTEMAGT - SERVIÇO WHATSAPP MULTI-USUÁRIO         ║');
+  log('SYSTEM', null, '╠══════════════════════════════════════════════════════════╣');
+  log('SYSTEM', null, `║  Porta: ${PORT}                                             ║`);
+  log('SYSTEM', null, `║  Pasta de sessões: ${AUTH_BASE_PATH.padEnd(28)}      ║`);
+  log('SYSTEM', null, '╚══════════════════════════════════════════════════════════╝');
+  console.log('');
 
   // Carrega sessões salvas após iniciar o servidor
   await loadSavedSessions();
 
-  console.log("[WhatsApp Service] Pronto para receber conexoes!");
+  console.log('');
+  log('SUCCESS', null, '🚀 Serviço WhatsApp pronto para receber conexões!');
+  console.log('');
 });

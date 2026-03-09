@@ -13,7 +13,9 @@ import {
   ShieldCheck,
   X,
   Lock,
+  RefreshCw,
 } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
 type UltimaConexao = {
   status: 'sucesso' | 'erro';
@@ -81,8 +83,9 @@ const TUTORIAIS: Tutorial[] = [
 ];
 
 export default function Definicoes() {
+  const { user } = useAuth();
   const [numero, setNumero] = useState('');
-  const [status, setStatus] = useState<string>('desconectado');
+  const [status, setStatus] = useState<string>('verificando');
   const [qr, setQr] = useState<string | null>(null);
   const [mensagem, setMensagem] = useState('');
   const [ultimaConexao, setUltimaConexao] = useState<UltimaConexao | null>(null);
@@ -90,9 +93,43 @@ export default function Definicoes() {
   const [tutorialSelecionado, setTutorialSelecionado] = useState<Tutorial | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [isCheckingStatus, setIsCheckingStatus] = useState(true);
   const [toastMessage, setToastMessage] = useState<{ title: string; description: string; type: 'success' | 'error' } | null>(null);
 
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Preencher número do usuário e verificar status ao carregar
+  useEffect(() => {
+    if (user?.telefone) {
+      setNumero(user.telefone);
+      verificarStatusConexao(user.telefone);
+    } else {
+      setStatus('desconectado');
+      setIsCheckingStatus(false);
+    }
+
+    return () => {
+      if (pollingRef.current) clearInterval(pollingRef.current);
+    };
+  }, [user]);
+
+  async function verificarStatusConexao(tel: string) {
+    setIsCheckingStatus(true);
+    try {
+      const res = await fetch(`/wts/status?numero=${tel}`);
+      if (res.ok) {
+        const data = await res.json();
+        setStatus(data.status || 'desconectado');
+        if (data.qr) setQr(data.qr);
+      } else {
+        setStatus('desconectado');
+      }
+    } catch {
+      setStatus('desconectado');
+    } finally {
+      setIsCheckingStatus(false);
+    }
+  }
 
   useEffect(() => {
     if (toastMessage) {
@@ -244,9 +281,17 @@ export default function Definicoes() {
       {/* Cards de Status */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Status da Conexão */}
-        <div className="bg-card border border-border rounded-lg p-4">
+        <div className={`border rounded-lg p-4 ${
+          status === 'conectado'
+            ? 'bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800'
+            : 'bg-card border-border'
+        }`}>
           <div className="flex items-center gap-3">
-            {status === 'conectado' ? (
+            {isCheckingStatus ? (
+              <div className="p-2 bg-blue-100 dark:bg-blue-900/20 rounded-lg">
+                <RefreshCw className="w-5 h-5 text-blue-600 dark:text-blue-400 animate-spin" />
+              </div>
+            ) : status === 'conectado' ? (
               <div className="p-2 bg-green-100 dark:bg-green-900/20 rounded-lg">
                 <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />
               </div>
@@ -256,9 +301,22 @@ export default function Definicoes() {
               </div>
             )}
             <div className="flex-1">
-              <p className="text-xs text-muted-foreground">Status</p>
-              <p className="font-semibold capitalize">{status}</p>
+              <p className="text-xs text-muted-foreground">Status WhatsApp</p>
+              <p className={`font-semibold capitalize ${
+                status === 'conectado' ? 'text-green-700 dark:text-green-400' : ''
+              }`}>
+                {isCheckingStatus ? 'Verificando...' : status}
+              </p>
             </div>
+            {!isCheckingStatus && numero && (
+              <button
+                onClick={() => verificarStatusConexao(numero)}
+                className="p-2 hover:bg-muted rounded-lg transition-colors"
+                title="Verificar status"
+              >
+                <RefreshCw className="w-4 h-4 text-muted-foreground" />
+              </button>
+            )}
           </div>
         </div>
 
@@ -330,7 +388,7 @@ export default function Definicoes() {
         <div className="flex items-center justify-between flex-wrap gap-3">
           <h3 className="text-lg font-semibold flex items-center gap-2">
             <Smartphone className="w-5 h-5 text-green-600" />
-            Conectar WhatsApp
+            {status === 'conectado' ? 'WhatsApp Conectado' : 'Conectar WhatsApp'}
           </h3>
           <button
             onClick={() => abrirTutorial(TUTORIAIS[1])}
@@ -342,32 +400,75 @@ export default function Definicoes() {
           </button>
         </div>
 
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <label htmlFor="numero" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-              Número com DDD e código do país
-            </label>
-            <input
-              id="numero"
-              placeholder="25884xxxxxxx"
-              value={numero}
-              onChange={(e) => setNumero(e.target.value)}
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 font-mono"
-            />
-            <p className="text-xs text-muted-foreground">
-              Exemplo: 25884xxxxxxx (Moçambique)
-            </p>
+        {/* Mostrar mensagem de sucesso quando conectado */}
+        {status === 'conectado' && !qr && (
+          <div className="bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+            <div className="flex items-start gap-3">
+              <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400 mt-0.5" />
+              <div className="flex-1">
+                <p className="font-medium text-green-800 dark:text-green-300">
+                  WhatsApp conectado com sucesso!
+                </p>
+                <p className="text-sm text-green-700 dark:text-green-400 mt-1">
+                  Número: <span className="font-mono">{numero}</span>
+                </p>
+                <p className="text-sm text-muted-foreground mt-2">
+                  As notificações serão enviadas automaticamente. Só reconecte se houver problemas no envio.
+                </p>
+              </div>
+            </div>
           </div>
+        )}
 
-          <button
-            onClick={conectar}
-            disabled={isConnecting || !numero}
-            className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-11 w-full gap-2"
-          >
-            <QrCode className="h-5 w-5" />
-            {isConnecting ? 'Conectando...' : 'Gerar QR Code'}
-          </button>
-        </div>
+        {/* Formulário de conexão - mostrar apenas quando não conectado ou esperando QR */}
+        {(status !== 'conectado' || qr) && (
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label htmlFor="numero" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                Número com DDD e código do país
+              </label>
+              <input
+                id="numero"
+                placeholder="25884xxxxxxx"
+                value={numero}
+                onChange={(e) => setNumero(e.target.value)}
+                disabled={status === 'conectado'}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 font-mono"
+              />
+              <p className="text-xs text-muted-foreground">
+                Exemplo: 25884xxxxxxx (Moçambique)
+              </p>
+            </div>
+
+            {!qr && (
+              <button
+                onClick={conectar}
+                disabled={isConnecting || !numero}
+                className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-11 w-full gap-2"
+              >
+                <QrCode className="h-5 w-5" />
+                {isConnecting ? 'Conectando...' : 'Gerar QR Code'}
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Botão para reconectar quando já conectado */}
+        {status === 'conectado' && !qr && (
+          <div className="pt-4 border-t border-border">
+            <p className="text-sm text-muted-foreground mb-3">
+              Tendo problemas com o envio de mensagens? Tente reconectar.
+            </p>
+            <button
+              onClick={conectar}
+              disabled={isConnecting}
+              className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 gap-2"
+            >
+              <RefreshCw className={`h-4 w-4 ${isConnecting ? 'animate-spin' : ''}`} />
+              {isConnecting ? 'Reconectando...' : 'Reconectar WhatsApp'}
+            </button>
+          </div>
+        )}
 
         {qr && (
           <div className="flex flex-col items-center gap-4 pt-4 border-t border-border">
