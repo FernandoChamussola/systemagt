@@ -60,6 +60,13 @@ async function processarNotificacoesAutomaticas() {
         continue;
       }
 
+      // Verificar se o usuário tem telefone configurado
+      if (!debt.usuario?.telefone) {
+        console.log(`⚠️ [CRON] Usuário de "${debt.devedor.nome}" não tem WhatsApp configurado, pulando...`);
+        puladas++;
+        continue;
+      }
+
       // Calcular valores
       const valorComJuros = debt.valorInicial + (debt.valorInicial * debt.taxaJuros / 100);
       const totalPago = debt.pagamentos.reduce((sum, p) => sum + p.valor, 0);

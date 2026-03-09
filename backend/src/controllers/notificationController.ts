@@ -155,6 +155,19 @@ export async function sendManualNotification(req: AuthRequest, res: Response) {
     const { debtId } = req.params;
     const { mensagemPersonalizada } = req.body;
 
+    // Buscar dados do usuário (para obter telefone de origem)
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { telefone: true, nome: true },
+    });
+
+    if (!user?.telefone) {
+      return res.status(400).json({
+        error: 'Seu número de WhatsApp não está configurado. Vá em Configurações para conectar seu WhatsApp.',
+        sucesso: false
+      });
+    }
+
     // Buscar dívida com devedor e pagamentos
     const debt = await prisma.debt.findFirst({
       where: {
@@ -215,8 +228,9 @@ export async function sendManualNotification(req: AuthRequest, res: Response) {
       },
     });
 
-    // Enviar WhatsApp
-    const resultado = await enviarWhatsApp(req.user.telefone, debt.devedor.telefone, mensagem);
+    // Enviar WhatsApp usando o número do usuário como origem
+    console.log(`📤 Enviando notificação: origem=${user.telefone}, destino=${debt.devedor.telefone}`);
+    const resultado = await enviarWhatsApp(user.telefone, debt.devedor.telefone, mensagem);
 
     // Atualizar status da notificação
     await prisma.notification.update({
