@@ -34,29 +34,35 @@ import {
 import { Link } from 'react-router-dom';
 import GuidedTour, { TourStep } from '@/components/GuidedTour';
 
-// Passos do tour de seleção múltipla
+// Passos do tour de seleção múltipla (formato react-joyride)
 const selectionTourSteps: TourStep[] = [
   {
+    target: 'body',
     title: 'Nova funcionalidade!',
     content: 'Agora você pode selecionar múltiplas dívidas para ver o resumo total. Vamos mostrar como funciona!',
-    position: 'center',
+    placement: 'center',
+    disableBeacon: true,
   },
   {
     target: '[data-tour="select-button"]',
     title: 'Botão de Seleção',
     content: 'Clique aqui para entrar no modo de seleção e escolher várias dívidas de uma vez.',
-    position: 'bottom',
+    placement: 'bottom',
+    disableBeacon: true,
   },
   {
     target: '[data-tour="debt-card"]',
     title: 'Selecionar Dívidas',
     content: 'No celular, pressione e segure um card por alguns segundos para começar a selecionar. No computador, basta clicar após entrar no modo de seleção.',
-    position: 'bottom',
+    placement: 'bottom',
+    disableBeacon: true,
   },
   {
+    target: 'body',
     title: 'Resumo dos Totais',
     content: 'Quando você selecionar dívidas, uma barra aparecerá mostrando: o total que você emprestou, quanto vai receber de volta, e o lucro esperado!',
-    position: 'center',
+    placement: 'center',
+    disableBeacon: true,
   },
 ];
 
@@ -675,8 +681,8 @@ export default function Dividas() {
                   {totalAReceber.toLocaleString('pt-MZ')} MT
                 </p>
               </div>
-              <div className="h-8 w-px bg-border hidden sm:block" />
-              <div className="text-center hidden sm:block">
+              <div className="h-8 w-px bg-border" />
+              <div className="text-center">
                 <p className="text-xs text-muted-foreground">Lucro Esperado</p>
                 <p className="text-lg font-bold text-green-600">
                   +{(totalAReceber - totalDado).toLocaleString('pt-MZ')} MT
