@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { debtApi, debtorApi, Debt, DebtStatus } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
@@ -27,8 +27,38 @@ import {
   Loader2,
   User,
   Percent,
+  X,
+  CheckSquare,
+  Square,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import GuidedTour, { TourStep } from '@/components/GuidedTour';
+
+// Passos do tour de seleção múltipla
+const selectionTourSteps: TourStep[] = [
+  {
+    title: 'Nova funcionalidade!',
+    content: 'Agora você pode selecionar múltiplas dívidas para ver o resumo total. Vamos mostrar como funciona!',
+    position: 'center',
+  },
+  {
+    target: '[data-tour="select-button"]',
+    title: 'Botão de Seleção',
+    content: 'Clique aqui para entrar no modo de seleção e escolher várias dívidas de uma vez.',
+    position: 'bottom',
+  },
+  {
+    target: '[data-tour="debt-card"]',
+    title: 'Selecionar Dívidas',
+    content: 'No celular, pressione e segure um card por alguns segundos para começar a selecionar. No computador, basta clicar após entrar no modo de seleção.',
+    position: 'bottom',
+  },
+  {
+    title: 'Resumo dos Totais',
+    content: 'Quando você selecionar dívidas, uma barra aparecerá mostrando: o total que você emprestou, quanto vai receber de volta, e o lucro esperado!',
+    position: 'center',
+  },
+];
 
 export default function Dividas() {
   const [statusFilter, setStatusFilter] = useState<DebtStatus | 'TODAS'>('TODAS');
@@ -46,6 +76,12 @@ export default function Dividas() {
     notificacaoAuto: false,
     periodicidadeNotificacao: '',
   });
+
+  // Estado para seleção múltipla
+  const [selectedDebts, setSelectedDebts] = useState<Set<string>>(new Set());
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressTriggered = useRef(false);
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -267,10 +303,69 @@ export default function Dividas() {
     }
   }
 
+  // Funções de seleção múltipla
+  const toggleSelection = useCallback((debtId: string) => {
+    setSelectedDebts((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(debtId)) {
+        newSet.delete(debtId);
+        if (newSet.size === 0) {
+          setIsSelectionMode(false);
+        }
+      } else {
+        newSet.add(debtId);
+      }
+      return newSet;
+    });
+  }, []);
+
+  const handleLongPressStart = useCallback((debtId: string) => {
+    longPressTriggered.current = false;
+    longPressTimer.current = setTimeout(() => {
+      longPressTriggered.current = true;
+      setIsSelectionMode(true);
+      setSelectedDebts((prev) => new Set(prev).add(debtId));
+    }, 500); // 500ms para long press
+  }, []);
+
+  const handleLongPressEnd = useCallback(() => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  }, []);
+
+  const handleCardClick = useCallback((debt: Debt, e: React.MouseEvent | React.TouchEvent) => {
+    if (longPressTriggered.current) {
+      e.preventDefault();
+      return;
+    }
+    if (isSelectionMode) {
+      e.preventDefault();
+      toggleSelection(debt.id);
+    }
+  }, [isSelectionMode, toggleSelection]);
+
+  const clearSelection = useCallback(() => {
+    setSelectedDebts(new Set());
+    setIsSelectionMode(false);
+  }, []);
+
+  const selectAll = useCallback(() => {
+    const allIds = filteredDebts.map((d) => d.id);
+    setSelectedDebts(new Set(allIds));
+    setIsSelectionMode(true);
+  }, []);
+
+  // Calcular totais das dívidas selecionadas
+  const selectedDebtsData = debtsData?.debts.filter((d) => selectedDebts.has(d.id)) || [];
+  const totalDado = selectedDebtsData.reduce((sum, d) => sum + d.valorInicial, 0);
+  const totalAReceber = selectedDebtsData.reduce((sum, d) => sum + d.valorAtual, 0);
+
   const filteredDebts = debtsData?.debts || [];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-24">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -278,14 +373,22 @@ export default function Dividas() {
           <p className="text-muted-foreground mt-1">Gerencie empréstimos e cobranças</p>
         </div>
 
-        <Button onClick={() => setShowCreateModal(true)} className="w-full sm:w-auto">
-          <Plus className="mr-2 h-4 w-4" />
-          Nova Dívida
-        </Button>
+        <div className="flex gap-2">
+          {isSelectionMode && (
+            <Button variant="outline" onClick={clearSelection}>
+              <X className="mr-2 h-4 w-4" />
+              Cancelar
+            </Button>
+          )}
+          <Button onClick={() => setShowCreateModal(true)} className="w-full sm:w-auto">
+            <Plus className="mr-2 h-4 w-4" />
+            Nova Dívida
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {(['TODAS', 'PENDENTE', 'ATRASADO', 'PAGO'] as const).map((status) => (
           <Button
             key={status}
@@ -314,7 +417,36 @@ export default function Dividas() {
             )}
           </Button>
         ))}
+
+        {filteredDebts.length > 0 && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={isSelectionMode ? clearSelection : selectAll}
+            className="ml-auto"
+            data-tour="select-button"
+          >
+            {isSelectionMode ? (
+              <>
+                <X className="mr-2 h-4 w-4" />
+                Limpar ({selectedDebts.size})
+              </>
+            ) : (
+              <>
+                <CheckSquare className="mr-2 h-4 w-4" />
+                Selecionar
+              </>
+            )}
+          </Button>
+        )}
       </div>
+
+      {/* Dica para mobile */}
+      {!isSelectionMode && filteredDebts.length > 0 && (
+        <p className="text-xs text-muted-foreground sm:hidden">
+          Pressione e segure um card para selecionar múltiplas dívidas
+        </p>
+      )}
 
       {/* List */}
       {isLoading ? (
@@ -323,128 +455,177 @@ export default function Dividas() {
         </div>
       ) : filteredDebts.length > 0 ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filteredDebts.map((debt) => (
-            <div
-              key={debt.id}
-              className={`bg-card border rounded-lg p-5 hover:shadow-lg transition-shadow ${
-                debt.status === 'ATRASADO' ? 'border-red-500/50' : 'border-border'
-              }`}
-            >
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  {getStatusIcon(debt.status)}
-                  <span
-                    className={`text-xs font-medium px-2 py-1 rounded-full border ${getStatusColor(
-                      debt.status
-                    )}`}
-                  >
-                    {debt.status}
-                  </span>
-                </div>
-              </div>
+          {filteredDebts.map((debt, index) => {
+            const isSelected = selectedDebts.has(debt.id);
 
-              <div className="space-y-3 mb-4">
-                <div>
-                  <p className="text-sm text-muted-foreground flex items-center gap-1">
-                    <User className="w-3 h-3" />
-                    {debt.devedor?.nome || 'Devedor'}
-                  </p>
-                </div>
-
-                <div className="flex items-baseline gap-2">
-                  <DollarSign className="w-4 h-4 text-primary" />
-                  <div className="w-full">
-                    <p className="text-lg font-bold text-foreground">
-                      Total: {debt.valorAtual.toLocaleString('pt-MZ')} MT
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Inicial: {debt.valorInicial.toLocaleString('pt-MZ')} MT
-                    </p>
-                    {(() => {
-                      const totalPago = debt.pagamentos?.reduce((sum, p) => sum + p.valor, 0) || 0;
-                      const valorRestante = debt.valorAtual - totalPago;
-                      return (
-                        <>
-                          {totalPago > 0 && (
-                            <p className="text-xs text-green-600">
-                              Pago: {totalPago.toLocaleString('pt-MZ')} MT
-                            </p>
-                          )}
-                          {valorRestante > 0 && debt.status !== 'PAGO' && (
-                            <p className="text-xs text-red-500 font-medium">
-                              Restante: {valorRestante.toLocaleString('pt-MZ')} MT
-                            </p>
-                          )}
-                        </>
-                      );
-                    })()}
+            return (
+              <div
+                key={debt.id}
+                data-tour={index === 0 ? 'debt-card' : undefined}
+                onClick={(e) => handleCardClick(debt, e)}
+                onTouchStart={() => handleLongPressStart(debt.id)}
+                onTouchEnd={handleLongPressEnd}
+                onTouchCancel={handleLongPressEnd}
+                onMouseDown={() => handleLongPressStart(debt.id)}
+                onMouseUp={handleLongPressEnd}
+                onMouseLeave={handleLongPressEnd}
+                className={`bg-card border rounded-lg p-5 transition-all cursor-pointer select-none ${
+                  debt.status === 'ATRASADO' ? 'border-red-500/50' : 'border-border'
+                } ${
+                  isSelected
+                    ? 'ring-2 ring-primary bg-primary/5 border-primary'
+                    : 'hover:shadow-lg'
+                } ${isSelectionMode ? 'cursor-pointer' : ''}`}
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    {isSelectionMode && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleSelection(debt.id);
+                        }}
+                        className="mr-1"
+                      >
+                        {isSelected ? (
+                          <CheckSquare className="w-5 h-5 text-primary" />
+                        ) : (
+                          <Square className="w-5 h-5 text-muted-foreground" />
+                        )}
+                      </button>
+                    )}
+                    {getStatusIcon(debt.status)}
+                    <span
+                      className={`text-xs font-medium px-2 py-1 rounded-full border ${getStatusColor(
+                        debt.status
+                      )}`}
+                    >
+                      {debt.status}
+                    </span>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 text-sm">
-                  <Percent className="w-3 h-3 text-muted-foreground" />
-                  <span className="text-muted-foreground">Juros: {debt.taxaJuros}% / mês</span>
+                <div className="space-y-3 mb-4">
+                  <div>
+                    <p className="text-sm text-muted-foreground flex items-center gap-1">
+                      <User className="w-3 h-3" />
+                      {debt.devedor?.nome || 'Devedor'}
+                    </p>
+                  </div>
+
+                  <div className="flex items-baseline gap-2">
+                    <DollarSign className="w-4 h-4 text-primary" />
+                    <div className="w-full">
+                      <p className="text-lg font-bold text-foreground">
+                        Total: {debt.valorAtual.toLocaleString('pt-MZ')} MT
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Inicial: {debt.valorInicial.toLocaleString('pt-MZ')} MT
+                      </p>
+                      {(() => {
+                        const totalPago = debt.pagamentos?.reduce((sum, p) => sum + p.valor, 0) || 0;
+                        const valorRestante = debt.valorAtual - totalPago;
+                        return (
+                          <>
+                            {totalPago > 0 && (
+                              <p className="text-xs text-green-600">
+                                Pago: {totalPago.toLocaleString('pt-MZ')} MT
+                              </p>
+                            )}
+                            {valorRestante > 0 && debt.status !== 'PAGO' && (
+                              <p className="text-xs text-red-500 font-medium">
+                                Restante: {valorRestante.toLocaleString('pt-MZ')} MT
+                              </p>
+                            )}
+                          </>
+                        );
+                      })()}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 text-sm">
+                    <Percent className="w-3 h-3 text-muted-foreground" />
+                    <span className="text-muted-foreground">Juros: {debt.taxaJuros}% / mês</span>
+                  </div>
+
+                  <div className="flex items-center gap-2 text-sm">
+                    <Calendar className="w-3 h-3 text-muted-foreground" />
+                    <span className="text-muted-foreground">
+                      Vence: {new Date(debt.dataVencimento).toLocaleDateString('pt-BR')}
+                    </span>
+                  </div>
                 </div>
 
-                <div className="flex items-center gap-2 text-sm">
-                  <Calendar className="w-3 h-3 text-muted-foreground" />
-                  <span className="text-muted-foreground">
-                    Vence: {new Date(debt.dataVencimento).toLocaleDateString('pt-BR')}
-                  </span>
-                </div>
-              </div>
+                {!isSelectionMode && (
+                  <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-border">
+                    <Link
+                      to={`/dividas/${debt.id}`}
+                      className="flex-1"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Button variant="outline" size="sm" className="w-full">
+                        <Eye className="mr-1 h-3 w-3" />
+                        Ver
+                      </Button>
+                    </Link>
 
-              <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-border">
-                <Link to={`/dividas/${debt.id}`} className="flex-1">
-                  <Button variant="outline" size="sm" className="w-full">
-                    <Eye className="mr-1 h-3 w-3" />
-                    Ver
-                  </Button>
-                </Link>
+                    {debt.status !== 'PAGO' && (
+                      <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openEditModal(debt);
+                          }}
+                          title="Editar"
+                        >
+                          <Edit className="h-3 w-3" />
+                        </Button>
 
-                {debt.status !== 'PAGO' && (
-                  <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openIncreaseInterestModal(debt);
+                          }}
+                          title="Aumentar juros"
+                        >
+                          <TrendingUp className="h-3 w-3" />
+                        </Button>
+
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-green-600"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleMarkAsPaid(debt.id);
+                          }}
+                          title="Marcar como paga"
+                        >
+                          <CheckCircle className="h-3 w-3" />
+                        </Button>
+                      </>
+                    )}
+
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => openEditModal(debt)}
-                      title="Editar"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openDeleteModal(debt);
+                      }}
+                      title="Deletar"
                     >
-                      <Edit className="h-3 w-3" />
+                      <Trash2 className="h-3 w-3" />
                     </Button>
-
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => openIncreaseInterestModal(debt)}
-                      title="Aumentar juros"
-                    >
-                      <TrendingUp className="h-3 w-3" />
-                    </Button>
-
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="text-green-600"
-                      onClick={() => handleMarkAsPaid(debt.id)}
-                      title="Marcar como paga"
-                    >
-                      <CheckCircle className="h-3 w-3" />
-                    </Button>
-                  </>
+                  </div>
                 )}
-
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => openDeleteModal(debt)}
-                  title="Deletar"
-                >
-                  <Trash2 className="h-3 w-3" />
-                </Button>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       ) : (
         <div className="text-center py-12 bg-card border border-border rounded-lg">
@@ -463,6 +644,46 @@ export default function Dividas() {
               Cadastrar Dívida
             </Button>
           )}
+        </div>
+      )}
+
+      {/* Barra de Resumo de Seleção */}
+      {selectedDebts.size > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border shadow-lg p-4 z-50">
+          <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <CheckSquare className="w-5 h-5 text-primary" />
+                <span className="font-medium">{selectedDebts.size} selecionada{selectedDebts.size > 1 ? 's' : ''}</span>
+              </div>
+              <Button variant="ghost" size="sm" onClick={clearSelection}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <div className="flex items-center gap-6">
+              <div className="text-center">
+                <p className="text-xs text-muted-foreground">Total Dado</p>
+                <p className="text-lg font-bold text-foreground">
+                  {totalDado.toLocaleString('pt-MZ')} MT
+                </p>
+              </div>
+              <div className="h-8 w-px bg-border" />
+              <div className="text-center">
+                <p className="text-xs text-muted-foreground">Total a Receber</p>
+                <p className="text-lg font-bold text-primary">
+                  {totalAReceber.toLocaleString('pt-MZ')} MT
+                </p>
+              </div>
+              <div className="h-8 w-px bg-border hidden sm:block" />
+              <div className="text-center hidden sm:block">
+                <p className="text-xs text-muted-foreground">Lucro Esperado</p>
+                <p className="text-lg font-bold text-green-600">
+                  +{(totalAReceber - totalDado).toLocaleString('pt-MZ')} MT
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -775,6 +996,14 @@ export default function Dividas() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Guided Tour para seleção múltipla */}
+      {filteredDebts.length > 0 && (
+        <GuidedTour
+          tourId="dividas-selection-v1"
+          steps={selectionTourSteps}
+        />
+      )}
     </div>
   );
 }

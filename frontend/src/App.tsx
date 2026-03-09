@@ -16,10 +16,12 @@ import DividaDetalhes from './pages/DividaDetalhes';
 import Notificacoes from './pages/Notificacoes';
 import Relatorios from './pages/Relatorios';
 import Definicoes from './pages/Definicoes';
+import Avisos from './pages/Avisos';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminUsers from './pages/AdminUsers';
 import AdminDebts from './pages/AdminDebts';
 import AdminDebtors from './pages/AdminDebtors';
+import AdminNotices from './pages/AdminNotices';
 
 const queryClient = new QueryClient();
 
@@ -113,6 +115,16 @@ function App() {
               }
             />
             <Route
+              path="/avisos"
+              element={
+                <ProtectedRoute>
+                  <AppLayout>
+                    <Avisos />
+                  </AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/admin"
               element={
                 <AdminProtectedRoute>
@@ -148,6 +160,16 @@ function App() {
                 <AdminProtectedRoute>
                   <AppLayout>
                     <AdminDebtors />
+                  </AppLayout>
+                </AdminProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/notices"
+              element={
+                <AdminProtectedRoute>
+                  <AppLayout>
+                    <AdminNotices />
                   </AppLayout>
                 </AdminProtectedRoute>
               }

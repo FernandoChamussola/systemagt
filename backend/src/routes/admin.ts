@@ -10,6 +10,12 @@ import {
   deleteDebt,
   getAllDebtors,
 } from '../controllers/admin';
+import {
+  listAllNotices,
+  createNotice,
+  updateNotice,
+  deleteNotice,
+} from '../controllers/systemNoticeController';
 import { authMiddleware } from '../middlewares/auth';
 import { adminMiddleware } from '../middlewares/adminAuth';
 
@@ -34,5 +40,11 @@ router.delete('/debts/:debtId', deleteDebt);
 
 // Debtor Management
 router.get('/debtors', getAllDebtors);
+
+// System Notices Management
+router.get('/notices', listAllNotices);
+router.post('/notices', createNotice);
+router.put('/notices/:id', updateNotice);
+router.delete('/notices/:id', deleteNotice);
 
 export default router;

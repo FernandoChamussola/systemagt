@@ -3,8 +3,10 @@ import { PrismaClient } from '@prisma/client';
 import { AuthRequest } from '../types';
 import fs from 'fs';
 import path from 'path';
+import { processImage, isImageFile, needsConversion } from '../utils/imageProcessor';
 
 const prisma = new PrismaClient();
+const uploadDir = path.resolve(__dirname, '..', '..', 'uploads');
 
 export async function uploadCollateral(req: AuthRequest, res: Response) {
   try {
@@ -37,13 +39,48 @@ export async function uploadCollateral(req: AuthRequest, res: Response) {
       return res.status(404).json({ error: 'Dívida não encontrada' });
     }
 
+    // Processar imagem se necessário (converter HEIC/HEIF para JPEG)
+    let finalFilename = file.filename;
+    let finalOriginalName = file.originalname;
+    let finalMimetype = file.mimetype;
+    let finalSize = file.size;
+
+    // Verificar mimetype ou extensão para detectar HEIC/HEIF
+    const ext = file.originalname.toLowerCase().split('.').pop();
+    const isHeic = ext === 'heic' || ext === 'heif';
+    const mimetypeToCheck = isHeic ? 'image/heic' : file.mimetype;
+
+    if (isImageFile(mimetypeToCheck) && needsConversion(mimetypeToCheck)) {
+      try {
+        const processed = await processImage(
+          file.path,
+          uploadDir,
+          file.originalname,
+          mimetypeToCheck
+        );
+        finalFilename = processed.filename;
+        finalOriginalName = processed.originalName;
+        finalMimetype = processed.mimetype;
+        finalSize = processed.size;
+      } catch (conversionError) {
+        console.error('Erro ao converter imagem:', conversionError);
+        // Se falhar a conversão, deletar arquivo e retornar erro
+        if (fs.existsSync(file.path)) {
+          fs.unlinkSync(file.path);
+        }
+        return res.status(400).json({
+          error: 'Erro ao processar imagem. Tente enviar em formato JPEG ou PNG.'
+        });
+      }
+    }
+
     const collateral = await prisma.collateral.create({
       data: {
         dividaId,
-        nomeArquivo: file.originalname,
-        caminhoArquivo: file.filename,
-        tipoArquivo: file.mimetype,
-        tamanho: file.size,
+        nomeArquivo: finalOriginalName,
+        caminhoArquivo: finalFilename,
+        tipoArquivo: finalMimetype,
+        tamanho: finalSize,
         descricao,
       },
     });
@@ -51,7 +88,7 @@ export async function uploadCollateral(req: AuthRequest, res: Response) {
     return res.status(201).json({ collateral });
   } catch (error) {
     // Deletar arquivo em caso de erro
-    if (req.file) {
+    if (req.file && fs.existsSync(req.file.path)) {
       fs.unlinkSync(req.file.path);
     }
     console.error('Erro ao fazer upload:', error);

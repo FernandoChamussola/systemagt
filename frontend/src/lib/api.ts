@@ -569,4 +569,81 @@ export const adminApi = {
   },
 };
 
+// System Notices API
+export type SystemNoticePriority = 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
+
+export interface SystemNotice {
+  id: string;
+  titulo: string;
+  conteudo: string;
+  prioridade: SystemNoticePriority;
+  ativo: boolean;
+  criadoEm: string;
+  atualizadoEm: string;
+  lido?: boolean;
+  lidoEm?: string | null;
+  totalLeituras?: number;
+  totalUsuarios?: number;
+  percentualLeitura?: number;
+}
+
+export const systemNoticeApi = {
+  // User endpoints
+  list: async (): Promise<{ notices: SystemNotice[] }> => {
+    const response = await api.get('/system-notices');
+    return response.data;
+  },
+
+  getUnreadCount: async (): Promise<{ unreadCount: number }> => {
+    const response = await api.get('/system-notices/unread-count');
+    return response.data;
+  },
+
+  markAsRead: async (id: string): Promise<{ message: string }> => {
+    const response = await api.post(`/system-notices/${id}/read`);
+    return response.data;
+  },
+
+  markAllAsRead: async (): Promise<{ message: string; count: number }> => {
+    const response = await api.post('/system-notices/read-all');
+    return response.data;
+  },
+
+  // Admin endpoints
+  adminList: async (params?: {
+    ativo?: boolean;
+    prioridade?: SystemNoticePriority;
+  }): Promise<{ notices: SystemNotice[] }> => {
+    const response = await api.get('/admin/notices', { params });
+    return response.data;
+  },
+
+  create: async (data: {
+    titulo: string;
+    conteudo: string;
+    prioridade?: SystemNoticePriority;
+  }): Promise<{ notice: SystemNotice }> => {
+    const response = await api.post('/admin/notices', data);
+    return response.data;
+  },
+
+  update: async (
+    id: string,
+    data: {
+      titulo?: string;
+      conteudo?: string;
+      prioridade?: SystemNoticePriority;
+      ativo?: boolean;
+    }
+  ): Promise<{ notice: SystemNotice }> => {
+    const response = await api.put(`/admin/notices/${id}`, data);
+    return response.data;
+  },
+
+  delete: async (id: string): Promise<{ message: string }> => {
+    const response = await api.delete(`/admin/notices/${id}`);
+    return response.data;
+  },
+};
+
 export default api;

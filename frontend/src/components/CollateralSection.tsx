@@ -110,6 +110,14 @@ export default function CollateralSection({ dividaId, garantias }: CollateralSec
     return tipoArquivo.startsWith('image/');
   }
 
+  function isImageFile(file: File) {
+    // Verificar pelo tipo MIME
+    if (file.type.startsWith('image/')) return true;
+    // Verificar pela extensão (para HEIC/HEIF que podem não ter mimetype correto)
+    const ext = file.name.toLowerCase().split('.').pop();
+    return ['heic', 'heif', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'bmp', 'tiff'].includes(ext || '');
+  }
+
   function formatFileSize(bytes: number) {
     if (bytes < 1024) return bytes + ' B';
     if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
@@ -131,7 +139,7 @@ export default function CollateralSection({ dividaId, garantias }: CollateralSec
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/*,.pdf,.doc,.docx"
+            accept="image/*,.heic,.heif,.pdf,.doc,.docx"
             className="hidden"
             onChange={handleFileSelect}
           />
@@ -231,7 +239,7 @@ export default function CollateralSection({ dividaId, garantias }: CollateralSec
             {selectedFile && (
               <div className="bg-muted p-4 rounded-lg">
                 <div className="flex items-center gap-2">
-                  {selectedFile.type.startsWith('image/') ? (
+                  {isImageFile(selectedFile) ? (
                     <Image className="w-5 h-5 text-muted-foreground" />
                   ) : (
                     <FileText className="w-5 h-5 text-muted-foreground" />
@@ -241,6 +249,11 @@ export default function CollateralSection({ dividaId, garantias }: CollateralSec
                     <p className="text-xs text-muted-foreground">
                       {formatFileSize(selectedFile.size)}
                     </p>
+                    {isImageFile(selectedFile) && !selectedFile.type.startsWith('image/') && (
+                      <p className="text-xs text-blue-500">
+                        Será convertido para JPEG
+                      </p>
+                    )}
                   </div>
                   <Button
                     variant="ghost"

@@ -31,9 +31,11 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-systemagt_user}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-systemagt_db}?schema=public
       JWT_SECRET: ${JWT_SECRET}
       PORT: 3000
-      WHATSAPP_API_URL: ${WHATSAPP_API_URL:-https://wtsapi.duckdns.org/enviar}
+      WHATSAPP_API_URL: http://whatsapp:3002/send
     depends_on:
       postgres:
+        condition: service_healthy
+      whatsapp:
         condition: service_healthy
     volumes:
       - ./backend/uploads:/app/uploads
@@ -78,8 +80,37 @@ services:
       - "traefik.http.services.systemagt.loadbalancer.server.port=80"
       - "traefik.http.routers.systemagt.priority=1"
 
+  whatsapp:
+    build:
+      context: ./wts
+      dockerfile: Dockerfile
+    container_name: systemagt-whatsapp
+    restart: unless-stopped
+    networks:
+      - traefik-public
+    volumes:
+      - whatsapp-sessions:/app/auth_sessions
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3002/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    labels:
+      - "traefik.enable=true"
+      # Rota para /wts/* vai para o servico WhatsApp
+      - "traefik.http.routers.systemagt-whatsapp.rule=Host(`systemagt.duckdns.org`) && PathPrefix(`/wts`)"
+      - "traefik.http.routers.systemagt-whatsapp.entrypoints=websecure"
+      - "traefik.http.routers.systemagt-whatsapp.tls.certresolver=letsencrypt"
+      - "traefik.http.services.systemagt-whatsapp.loadbalancer.server.port=3002"
+      - "traefik.http.routers.systemagt-whatsapp.priority=10"
+      # Middleware para remover /wts do path
+      - "traefik.http.middlewares.strip-wts.stripprefix.prefixes=/wts"
+      - "traefik.http.routers.systemagt-whatsapp.middlewares=strip-wts"
+
 volumes:
   postgres-data:
+  whatsapp-sessions:
 
 networks:
   traefik-public:

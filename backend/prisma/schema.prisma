@@ -157,3 +157,36 @@ model PasswordResetToken {
   @@index([expiraEm])
   @@map("password_reset_tokens")
 }
+
+enum SystemNoticePriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+model SystemNotice {
+  id            String               @id @default(uuid())
+  titulo        String
+  conteudo      String
+  prioridade    SystemNoticePriority @default(NORMAL)
+  ativo         Boolean              @default(true)
+  criadoEm      DateTime             @default(now()) @map("criado_em")
+  atualizadoEm  DateTime             @updatedAt @map("atualizado_em")
+
+  leituras      SystemNoticeRead[]
+
+  @@map("system_notices")
+}
+
+model SystemNoticeRead {
+  id            String       @id @default(uuid())
+  avisoId       String       @map("aviso_id")
+  usuarioId     String       @map("usuario_id")
+  lidoEm        DateTime     @default(now()) @map("lido_em")
+
+  aviso         SystemNotice @relation(fields: [avisoId], references: [id], onDelete: Cascade)
+
+  @@unique([avisoId, usuarioId])
+  @@map("system_notice_reads")
+}

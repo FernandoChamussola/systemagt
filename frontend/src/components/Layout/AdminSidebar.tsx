@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Shield, UserCog, FileText, Users, BarChart, LogOut, Home } from 'lucide-react';
+import { Shield, UserCog, FileText, Users, BarChart, LogOut, Home, Megaphone } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -8,6 +8,7 @@ const adminMenuItems = [
   { icon: UserCog, label: 'Gestão de Usuários', path: '/admin/users' },
   { icon: FileText, label: 'Todas as Dívidas', path: '/admin/debts' },
   { icon: Users, label: 'Todos os Devedores', path: '/admin/debtors' },
+  { icon: Megaphone, label: 'Avisos do Sistema', path: '/admin/notices' },
   { icon: BarChart, label: 'Relatórios do Sistema', path: '/admin/reports' },
 ];
 

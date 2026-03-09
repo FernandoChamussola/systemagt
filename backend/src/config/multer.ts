@@ -22,20 +22,33 @@ const storage = multer.diskStorage({
 
 const fileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
   const allowedMimes = [
+    // Imagens padrão
     'image/jpeg',
     'image/jpg',
     'image/png',
     'image/gif',
     'image/webp',
+    // Formatos modernos (iPhone, Samsung, etc.) - serão convertidos para JPEG
+    'image/heic',
+    'image/heif',
+    'image/avif',
+    'image/tiff',
+    'image/bmp',
+    // Documentos
     'application/pdf',
     'application/msword',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   ];
 
-  if (allowedMimes.includes(file.mimetype)) {
+  // Alguns dispositivos enviam HEIC com mimetype genérico ou incorreto
+  // Verificar também pela extensão do arquivo
+  const ext = file.originalname.toLowerCase().split('.').pop();
+  const heicExtensions = ['heic', 'heif'];
+
+  if (allowedMimes.includes(file.mimetype) || (ext && heicExtensions.includes(ext))) {
     cb(null, true);
   } else {
-    cb(new Error('Tipo de arquivo inválido'));
+    cb(new Error('Tipo de arquivo inválido. Formatos aceitos: JPEG, PNG, GIF, WEBP, HEIC, HEIF, PDF, DOC, DOCX'));
   }
 };
 

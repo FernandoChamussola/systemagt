@@ -1,12 +1,15 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Home, Users, FileText, Bell, BarChart, DollarSign } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { Home, Users, FileText, Bell, BarChart, DollarSign, Megaphone } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { systemNoticeApi } from '@/lib/api';
 
 const menuItems = [
   { icon: Home, label: 'Dashboard', path: '/dashboard' },
   { icon: Users, label: 'Devedores', path: '/devedores' },
   { icon: FileText, label: 'Dívidas', path: '/dividas' },
   { icon: Bell, label: 'Notificações', path: '/notificacoes' },
+  { icon: Megaphone, label: 'Avisos', path: '/avisos', showBadge: true },
   { icon: BarChart, label: 'Relatórios', path: '/relatorios' },
   { icon: DollarSign, label: 'Configurações', path: '/definicoes' },
 ];
@@ -18,6 +21,14 @@ interface SidebarProps {
 
 export default function Sidebar({ className, onItemClick }: SidebarProps) {
   const location = useLocation();
+
+  const { data: unreadData } = useQuery({
+    queryKey: ['unread-notices-count'],
+    queryFn: systemNoticeApi.getUnreadCount,
+    refetchInterval: 60000, // Atualiza a cada 1 minuto
+  });
+
+  const unreadCount = unreadData?.unreadCount || 0;
 
   return (
     <aside className={cn('flex flex-col h-full bg-card border-r border-border', className)}>
@@ -39,6 +50,7 @@ export default function Sidebar({ className, onItemClick }: SidebarProps) {
         {menuItems.map((item) => {
           const Icon = item.icon;
           const isActive = location.pathname === item.path;
+          const showBadge = item.showBadge && unreadCount > 0;
 
           return (
             <Link
@@ -46,13 +58,20 @@ export default function Sidebar({ className, onItemClick }: SidebarProps) {
               to={item.path}
               onClick={onItemClick}
               className={cn(
-                'flex items-center gap-3 px-4 py-3 rounded-lg transition-all',
+                'flex items-center gap-3 px-4 py-3 rounded-lg transition-all relative',
                 isActive
                   ? 'bg-primary text-primary-foreground'
                   : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
               )}
             >
-              <Icon className="w-5 h-5" />
+              <div className="relative">
+                <Icon className="w-5 h-5" />
+                {showBadge && (
+                  <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] flex items-center justify-center bg-red-500 text-white text-[10px] font-bold rounded-full px-1">
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                )}
+              </div>
               <span className="font-medium">{item.label}</span>
             </Link>
           );
@@ -62,8 +81,8 @@ export default function Sidebar({ className, onItemClick }: SidebarProps) {
       {/* Footer */}
       <div className="p-4 border-t border-border">
         <div className="px-4 py-3 bg-primary/5 rounded-lg">
-          <p className="text-xs text-muted-foreground">Versão 1.1.2(beta)</p>
-          <p className="text-xs text-muted-foreground mt-1">© 2023 DebtTracker. All rights reserved.</p>
+          <p className="text-xs text-muted-foreground">Versão 1.2.0</p>
+          <p className="text-xs text-muted-foreground mt-1">© 2026 DebtTracker</p>
         </div>
       </div>
     </aside>

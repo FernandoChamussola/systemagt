@@ -110,7 +110,7 @@ export default function Definicoes() {
   async function conectar() {
     setIsConnecting(true);
     try {
-      const res = await fetch('https://wtsapi.duckdns.org/connect', {
+      const res = await fetch('/wts/connect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ numero }),
@@ -136,7 +136,7 @@ export default function Definicoes() {
   async function enviarTeste() {
     setIsSending(true);
     try {
-      const res = await fetch('https://wtsapi.duckdns.org/enviar', {
+      const res = await fetch('/wts/enviar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -171,7 +171,7 @@ export default function Definicoes() {
     pollingRef.current = setInterval(async () => {
       try {
         const res = await fetch(
-          `https://wtsapi.duckdns.org/status?numero=${numero}`
+          `/wts/status?numero=${numero}`
         );
         if (!res.ok) throw new Error();
         const data = await res.json();
