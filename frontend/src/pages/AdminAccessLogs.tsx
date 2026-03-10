@@ -2,15 +2,6 @@ import { useEffect, useState } from 'react';
 import { adminApi, AccessLog } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import {
   Select,
   SelectContent,
@@ -24,7 +15,6 @@ import {
   CheckCircle,
   XCircle,
   RefreshCw,
-  Search,
   Monitor,
   Clock,
 } from 'lucide-react';
@@ -76,7 +66,7 @@ export default function AdminAccessLogs() {
   }
 
   function getActionLabel(action: string) {
-    const labels: Record<string, { label: string; color: string; icon: any }> = {
+    const labels: Record<string, { label: string; color: string; icon: typeof LogIn }> = {
       LOGIN: { label: 'Login', color: 'text-green-600', icon: LogIn },
       LOGIN_FAILED: { label: 'Login Falhou', color: 'text-red-600', icon: XCircle },
       LOGIN_BLOCKED: { label: 'Conta Bloqueada', color: 'text-orange-600', icon: AlertTriangle },
@@ -87,14 +77,12 @@ export default function AdminAccessLogs() {
   function parseUserAgent(ua: string | null) {
     if (!ua) return 'Desconhecido';
 
-    // Browser detection
     let browser = 'Navegador';
     if (ua.includes('Chrome')) browser = 'Chrome';
     else if (ua.includes('Firefox')) browser = 'Firefox';
     else if (ua.includes('Safari')) browser = 'Safari';
     else if (ua.includes('Edge')) browser = 'Edge';
 
-    // OS detection
     let os = '';
     if (ua.includes('Windows')) os = 'Windows';
     else if (ua.includes('Mac')) os = 'macOS';
@@ -175,7 +163,7 @@ export default function AdminAccessLogs() {
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Todos</SelectItem>
+                  <SelectItem value=" ">Todos</SelectItem>
                   <SelectItem value="true">Sucesso</SelectItem>
                   <SelectItem value="false">Falha</SelectItem>
                 </SelectContent>
@@ -216,68 +204,70 @@ export default function AdminAccessLogs() {
               Nenhum log de acesso encontrado
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Data/Hora</TableHead>
-                  <TableHead>Usuario</TableHead>
-                  <TableHead>Acao</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>IP</TableHead>
-                  <TableHead>Dispositivo</TableHead>
-                  <TableHead>Detalhes</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {logs.map((log) => {
-                  const actionInfo = getActionLabel(log.action);
-                  const ActionIcon = actionInfo.icon;
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Data/Hora</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Usuario</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acao</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">IP</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Dispositivo</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Detalhes</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {logs.map((log) => {
+                    const actionInfo = getActionLabel(log.action);
+                    const ActionIcon = actionInfo.icon;
 
-                  return (
-                    <TableRow key={log.id}>
-                      <TableCell className="whitespace-nowrap text-sm">
-                        {formatDate(log.criadoEm)}
-                      </TableCell>
-                      <TableCell>
-                        <div>
-                          <div className="font-medium">{log.userName}</div>
-                          <div className="text-xs text-gray-500">{log.userEmail}</div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className={`flex items-center gap-2 ${actionInfo.color}`}>
-                          <ActionIcon className="w-4 h-4" />
-                          <span className="text-sm">{actionInfo.label}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {log.success ? (
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                            Sucesso
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                            Falha
-                          </span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-sm text-gray-600">
-                        {log.ipAddress || '-'}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2 text-sm text-gray-600">
-                          <Monitor className="w-4 h-4" />
-                          {parseUserAgent(log.userAgent)}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-sm text-gray-500">
-                        {log.errorMessage || '-'}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+                    return (
+                      <tr key={log.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                          {formatDate(log.criadoEm)}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div>
+                            <div className="font-medium text-gray-900">{log.userName}</div>
+                            <div className="text-xs text-gray-500">{log.userEmail}</div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className={`flex items-center gap-2 ${actionInfo.color}`}>
+                            <ActionIcon className="w-4 h-4" />
+                            <span className="text-sm">{actionInfo.label}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          {log.success ? (
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                              Sucesso
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                              Falha
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-600">
+                          {log.ipAddress || '-'}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2 text-sm text-gray-600">
+                            <Monitor className="w-4 h-4" />
+                            {parseUserAgent(log.userAgent)}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-500">
+                          {log.errorMessage || '-'}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           )}
         </CardContent>
       </Card>
