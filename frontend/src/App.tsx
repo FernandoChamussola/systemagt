@@ -22,6 +22,7 @@ import AdminUsers from './pages/AdminUsers';
 import AdminDebts from './pages/AdminDebts';
 import AdminDebtors from './pages/AdminDebtors';
 import AdminNotices from './pages/AdminNotices';
+import AdminAccessLogs from './pages/AdminAccessLogs';
 
 const queryClient = new QueryClient();
 
@@ -170,6 +171,16 @@ function App() {
                 <AdminProtectedRoute>
                   <AppLayout>
                     <AdminNotices />
+                  </AppLayout>
+                </AdminProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/access-logs"
+              element={
+                <AdminProtectedRoute>
+                  <AppLayout>
+                    <AdminAccessLogs />
                   </AppLayout>
                 </AdminProtectedRoute>
               }

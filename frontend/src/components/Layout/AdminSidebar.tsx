@@ -1,15 +1,16 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Shield, UserCog, FileText, Users, BarChart, LogOut, Home, Megaphone } from 'lucide-react';
+import { Shield, UserCog, FileText, Users, BarChart, LogOut, Home, Megaphone, History } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 
 const adminMenuItems = [
   { icon: Shield, label: 'Dashboard Admin', path: '/admin' },
-  { icon: UserCog, label: 'Gestão de Usuários', path: '/admin/users' },
-  { icon: FileText, label: 'Todas as Dívidas', path: '/admin/debts' },
+  { icon: UserCog, label: 'Gestao de Usuarios', path: '/admin/users' },
+  { icon: FileText, label: 'Todas as Dividas', path: '/admin/debts' },
   { icon: Users, label: 'Todos os Devedores', path: '/admin/debtors' },
   { icon: Megaphone, label: 'Avisos do Sistema', path: '/admin/notices' },
-  { icon: BarChart, label: 'Relatórios do Sistema', path: '/admin/reports' },
+  { icon: History, label: 'Logs de Acesso', path: '/admin/access-logs' },
+  { icon: BarChart, label: 'Relatorios do Sistema', path: '/admin/reports' },
 ];
 
 interface AdminSidebarProps {

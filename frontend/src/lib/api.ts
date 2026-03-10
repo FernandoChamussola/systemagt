@@ -470,6 +470,19 @@ export interface AdminUser {
   };
 }
 
+export interface AccessLog {
+  id: string;
+  userId: string;
+  userEmail: string;
+  userName: string;
+  ipAddress: string | null;
+  userAgent: string | null;
+  action: string;
+  success: boolean;
+  errorMessage: string | null;
+  criadoEm: string;
+}
+
 export interface AdminStats {
   users: {
     total: number;
@@ -565,6 +578,27 @@ export const adminApi = {
     limit: number;
   }> => {
     const response = await api.get('/admin/debtors', { params });
+    return response.data;
+  },
+
+  getAccessLogs: async (params?: {
+    page?: number;
+    limit?: number;
+    userId?: string;
+    success?: string;
+    action?: string;
+  }): Promise<{
+    logs: AccessLog[];
+    total: number;
+    page: number;
+    limit: number;
+    stats: {
+      todayTotal: number;
+      todaySuccess: number;
+      todayFailed: number;
+    };
+  }> => {
+    const response = await api.get('/admin/access-logs', { params });
     return response.data;
   },
 };

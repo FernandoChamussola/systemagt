@@ -490,3 +490,61 @@ export async function getAllDebtors(req: AuthRequest, res: Response) {
     res.status(500).json({ error: 'Erro ao listar devedores' });
   }
 }
+
+/**
+ * Listar logs de acesso ao sistema
+ */
+export async function getAccessLogs(req: AuthRequest, res: Response) {
+  try {
+    const { page = 1, limit = 50, userId, success, action } = req.query;
+
+    const where: any = {};
+
+    if (userId) {
+      where.userId = userId;
+    }
+
+    if (success !== undefined && success !== '') {
+      where.success = success === 'true';
+    }
+
+    if (action && action !== 'all') {
+      where.action = action;
+    }
+
+    const [logs, total] = await Promise.all([
+      prisma.accessLog.findMany({
+        where,
+        skip: (Number(page) - 1) * Number(limit),
+        take: Number(limit),
+        orderBy: { criadoEm: 'desc' },
+      }),
+      prisma.accessLog.count({ where }),
+    ]);
+
+    // Estatísticas rápidas
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const stats = await Promise.all([
+      prisma.accessLog.count({ where: { criadoEm: { gte: today } } }),
+      prisma.accessLog.count({ where: { success: true, criadoEm: { gte: today } } }),
+      prisma.accessLog.count({ where: { success: false, criadoEm: { gte: today } } }),
+    ]);
+
+    res.json({
+      logs,
+      total,
+      page: Number(page),
+      limit: Number(limit),
+      stats: {
+        todayTotal: stats[0],
+        todaySuccess: stats[1],
+        todayFailed: stats[2],
+      },
+    });
+  } catch (error) {
+    console.error('Erro ao listar logs de acesso:', error);
+    res.status(500).json({ error: 'Erro ao listar logs de acesso' });
+  }
+}

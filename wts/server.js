@@ -66,9 +66,14 @@ if (!fs.existsSync(AUTH_BASE_PATH)) {
 /**
  * Armazena todas as instâncias WhatsApp ativas
  * Chave: número de telefone (normalizado)
- * Valor: { sock, status, qr, reconnectAttempts }
+ * Valor: { sock, status, qr, reconnectAttempts, isConnecting }
  */
 const instances = new Map();
+
+/**
+ * Locks para evitar conexões simultâneas ao mesmo número
+ */
+const connectionLocks = new Map();
 
 /**
  * Normaliza número de telefone (remove caracteres especiais)
@@ -96,9 +101,26 @@ function getInstance(numero) {
       status: "disconnected",
       qr: null,
       reconnectAttempts: 0,
+      isConnecting: false,
     });
   }
   return instances.get(normalized);
+}
+
+/**
+ * Fecha socket de forma segura
+ */
+async function closeSocket(sock, normalized) {
+  if (!sock) return;
+
+  try {
+    log('INFO', normalized, 'Fechando socket antigo...');
+    sock.ev.removeAllListeners();
+    await sock.ws?.close();
+    sock.end?.();
+  } catch (error) {
+    log('WARN', normalized, `Erro ao fechar socket: ${error.message}`);
+  }
 }
 
 /**
@@ -109,12 +131,35 @@ async function connectToWhatsApp(numero) {
   const instance = getInstance(numero);
   const authPath = getAuthPath(numero);
 
+  // ============ PROTEÇÃO CONTRA CONEXÕES DUPLICADAS ============
+  // Verifica se já existe uma conexão em andamento
+  if (instance.isConnecting) {
+    log('WARN', normalized, '⚠️ Conexão já em andamento - ignorando chamada duplicada');
+    return;
+  }
+
+  // Verifica se já está conectado
+  if (instance.status === "connected" && instance.sock) {
+    log('INFO', normalized, 'Já conectado - ignorando');
+    return;
+  }
+
+  // Marca como conectando para evitar duplicações
+  instance.isConnecting = true;
+
   log('WTS', normalized, '═══════════════════════════════════════════════');
   log('WTS', normalized, `Iniciando processo de conexão WhatsApp`);
   log('WTS', normalized, `Número: ${normalized}`);
   log('WTS', normalized, `Pasta de sessão: ${authPath}`);
 
   try {
+    // ============ FECHAR SOCKET ANTIGO SE EXISTIR ============
+    if (instance.sock) {
+      log('WARN', normalized, '⚠️ Socket antigo detectado - fechando antes de criar novo');
+      await closeSocket(instance.sock, normalized);
+      instance.sock = null;
+    }
+
     instance.status = "connecting";
     instance.qr = null;
 
@@ -140,6 +185,12 @@ async function connectToWhatsApp(numero) {
       auth: state,
       logger: require("pino")({ level: "silent" }),
       browser: ["SystemAGT", "Chrome", "1.0.0"],
+      // Configurações para manter conexão estável
+      connectTimeoutMs: 60000,           // Timeout de conexão: 60s
+      defaultQueryTimeoutMs: 60000,      // Timeout de queries: 60s
+      keepAliveIntervalMs: 30000,        // Keepalive a cada 30s
+      retryRequestDelayMs: 500,          // Delay entre retries
+      markOnlineOnConnect: true,         // Marcar como online ao conectar
     });
 
     instance.sock = sock;
@@ -157,6 +208,7 @@ async function connectToWhatsApp(numero) {
       if (connection === "close") {
         const reason = new Boom(lastDisconnect?.error)?.output?.statusCode;
         instance.qr = null;
+        instance.isConnecting = false;  // Reset flag ao fechar conexão
 
         if (reason === DisconnectReason.loggedOut) {
           log('WARN', normalized, '🚪 Sessão encerrada pelo usuário (logout)');
@@ -181,7 +233,8 @@ async function connectToWhatsApp(numero) {
           if (instance.reconnectAttempts <= 3) {
             log('WARN', normalized, `🔄 Conexão perdida - Reconectando... (tentativa ${instance.reconnectAttempts}/3)`);
             instance.status = "reconnecting";
-            setTimeout(() => connectToWhatsApp(numero), 3000);
+            // Aguarda mais tempo entre tentativas para evitar rate limiting
+            setTimeout(() => connectToWhatsApp(numero), 5000);
           } else {
             log('ERROR', normalized, '❌ Máximo de tentativas atingido (3). Resetando sessão...');
             instance.status = "disconnected";
@@ -195,9 +248,11 @@ async function connectToWhatsApp(numero) {
             }
           }
         } else if (reason === DisconnectReason.connectionReplaced) {
-          log('WARN', normalized, '⚠️ Conexão substituída por outra sessão');
+          log('ERROR', normalized, '⚠️ CONEXÃO SUBSTITUÍDA - Possível conexão duplicada detectada!');
+          log('WARN', normalized, '   Isso pode ocorrer quando múltiplas conexões são abertas para o mesmo número');
           instance.status = "disconnected";
           instance.sock = null;
+          // NÃO reconectar automaticamente para evitar loop
         } else {
           log('WARN', normalized, `Desconectado (código: ${reason})`);
           instance.status = "disconnected";
@@ -212,6 +267,7 @@ async function connectToWhatsApp(numero) {
         instance.status = "connected";
         instance.qr = null;
         instance.reconnectAttempts = 0;
+        instance.isConnecting = false;  // Conexão completa
       }
     });
 
@@ -219,6 +275,7 @@ async function connectToWhatsApp(numero) {
   } catch (error) {
     log('ERROR', normalized, `Erro ao conectar: ${error.message}`);
     instance.status = "disconnected";
+    instance.isConnecting = false;  // Reset em caso de erro
   }
 }
 
@@ -281,8 +338,8 @@ async function loadSavedSessions() {
       try {
         await connectToWhatsApp(numero);
         reconnected++;
-        // Aguarda um pouco entre conexões para não sobrecarregar
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        // Aguarda entre conexões para não sobrecarregar e evitar rate limiting
+        await new Promise(resolve => setTimeout(resolve, 3000));
       } catch (error) {
         log('ERROR', numero, `Erro ao reconectar: ${error.message}`);
       }
@@ -370,19 +427,26 @@ app.post("/connect", async (req, res) => {
   const normalized = normalizeNumber(numero);
   const instance = getInstance(numero);
 
+  // Já conectado - retorna sucesso imediato
   if (instance.status === "connected") {
-    return res.json({ success: true, message: "Já conectado" });
+    log('INFO', normalized, 'Requisição /connect - Já conectado');
+    return res.json({ success: true, message: "Já conectado", status: "connected" });
   }
 
-  if (instance.status === "connecting" || instance.status === "waiting_qr") {
+  // Conexão em andamento - retorna status atual sem iniciar nova
+  if (instance.isConnecting || instance.status === "connecting" || instance.status === "waiting_qr" || instance.status === "reconnecting") {
+    log('INFO', normalized, `Requisição /connect - Conexão já em andamento (${instance.status})`);
     return res.json({
       success: true,
       message: "Conexão em andamento",
-      qr: instance.qr
+      qr: instance.qr,
+      status: instance.status
     });
   }
 
   try {
+    log('INFO', normalized, 'Requisição /connect - Iniciando nova conexão');
+
     // Inicia conexão de forma assíncrona
     connectToWhatsApp(numero);
 
@@ -552,6 +616,34 @@ app.get("/health", (req, res) => {
   });
 });
 
+// Monitor de conexões - loga estado a cada 5 minutos
+function startConnectionMonitor() {
+  setInterval(() => {
+    const stats = {
+      total: instances.size,
+      connected: 0,
+      disconnected: 0,
+      connecting: 0,
+      waiting_qr: 0,
+      reconnecting: 0,
+    };
+
+    instances.forEach((instance, numero) => {
+      if (instance.status === 'connected') stats.connected++;
+      else if (instance.status === 'disconnected') stats.disconnected++;
+      else if (instance.status === 'connecting') stats.connecting++;
+      else if (instance.status === 'waiting_qr') stats.waiting_qr++;
+      else if (instance.status === 'reconnecting') stats.reconnecting++;
+    });
+
+    if (stats.total > 0) {
+      log('SYSTEM', null, `📊 Monitor: ${stats.connected}/${stats.total} conectados | ` +
+        `${stats.disconnected} desconectados | ${stats.reconnecting} reconectando | ` +
+        `${stats.waiting_qr} aguardando QR`);
+    }
+  }, 5 * 60 * 1000); // A cada 5 minutos
+}
+
 // Inicia servidor
 app.listen(PORT, async () => {
   console.log('');
@@ -565,6 +657,9 @@ app.listen(PORT, async () => {
 
   // Carrega sessões salvas após iniciar o servidor
   await loadSavedSessions();
+
+  // Inicia monitor de conexões
+  startConnectionMonitor();
 
   console.log('');
   log('SUCCESS', null, '🚀 Serviço WhatsApp pronto para receber conexões!');

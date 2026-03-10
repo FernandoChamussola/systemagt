@@ -82,6 +82,9 @@ export async function register(req: Request, res: Response) {
 }
 
 export async function login(req: Request, res: Response) {
+  const ipAddress = req.headers['x-forwarded-for'] as string || req.socket.remoteAddress || null;
+  const userAgent = req.headers['user-agent'] || null;
+
   try {
     const { email, senha } = loginSchema.parse(req.body);
 
@@ -90,19 +93,69 @@ export async function login(req: Request, res: Response) {
     });
 
     if (!user) {
+      // Registrar tentativa de login falha
+      await prisma.accessLog.create({
+        data: {
+          userId: 'unknown',
+          userEmail: email,
+          userName: 'Desconhecido',
+          ipAddress,
+          userAgent,
+          action: 'LOGIN_FAILED',
+          success: false,
+          errorMessage: 'Email não encontrado',
+        },
+      });
       return res.status(401).json({ error: 'Email ou senha incorretos' });
     }
 
     // Verificar se a conta está ativa
     if (!user.isActive) {
+      await prisma.accessLog.create({
+        data: {
+          userId: user.id,
+          userEmail: user.email,
+          userName: user.nome,
+          ipAddress,
+          userAgent,
+          action: 'LOGIN_BLOCKED',
+          success: false,
+          errorMessage: 'Conta desativada',
+        },
+      });
       return res.status(403).json({ error: 'Conta desativada. Contacte o administrador.' });
     }
 
     const senhaValida = await bcrypt.compare(senha, user.senha);
 
     if (!senhaValida) {
+      await prisma.accessLog.create({
+        data: {
+          userId: user.id,
+          userEmail: user.email,
+          userName: user.nome,
+          ipAddress,
+          userAgent,
+          action: 'LOGIN_FAILED',
+          success: false,
+          errorMessage: 'Senha incorreta',
+        },
+      });
       return res.status(401).json({ error: 'Email ou senha incorretos' });
     }
+
+    // Registrar login bem-sucedido
+    await prisma.accessLog.create({
+      data: {
+        userId: user.id,
+        userEmail: user.email,
+        userName: user.nome,
+        ipAddress,
+        userAgent,
+        action: 'LOGIN',
+        success: true,
+      },
+    });
 
     const token = await generateToken(user.id);
 

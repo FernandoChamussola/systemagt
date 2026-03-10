@@ -190,3 +190,20 @@ model SystemNoticeRead {
   @@unique([avisoId, usuarioId])
   @@map("system_notice_reads")
 }
+
+model AccessLog {
+  id            String   @id @default(uuid())
+  userId        String   @map("user_id")
+  userEmail     String   @map("user_email")
+  userName      String   @map("user_name")
+  ipAddress     String?  @map("ip_address")
+  userAgent     String?  @map("user_agent")
+  action        String   @default("LOGIN")
+  success       Boolean  @default(true)
+  errorMessage  String?  @map("error_message")
+  criadoEm      DateTime @default(now()) @map("criado_em")
+
+  @@index([userId])
+  @@index([criadoEm])
+  @@map("access_logs")
+}

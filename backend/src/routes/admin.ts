@@ -9,6 +9,7 @@ import {
   updateDebt,
   deleteDebt,
   getAllDebtors,
+  getAccessLogs,
 } from '../controllers/admin';
 import {
   listAllNotices,
@@ -46,5 +47,8 @@ router.get('/notices', listAllNotices);
 router.post('/notices', createNotice);
 router.put('/notices/:id', updateNotice);
 router.delete('/notices/:id', deleteNotice);
+
+// Access Logs
+router.get('/access-logs', getAccessLogs);
 
 export default router;
