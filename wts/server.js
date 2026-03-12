@@ -616,9 +616,9 @@ app.get("/health", (req, res) => {
   });
 });
 
-// Monitor de conexões - loga estado a cada 5 minutos
+// Monitor de conexões - loga estado e reconecta desconectados a cada 2 minutos
 function startConnectionMonitor() {
-  setInterval(() => {
+  setInterval(async () => {
     const stats = {
       total: instances.size,
       connected: 0,
@@ -628,9 +628,15 @@ function startConnectionMonitor() {
       reconnecting: 0,
     };
 
+    // Lista de números desconectados para reconectar
+    const disconnectedNumbers = [];
+
     instances.forEach((instance, numero) => {
       if (instance.status === 'connected') stats.connected++;
-      else if (instance.status === 'disconnected') stats.disconnected++;
+      else if (instance.status === 'disconnected') {
+        stats.disconnected++;
+        disconnectedNumbers.push(numero);
+      }
       else if (instance.status === 'connecting') stats.connecting++;
       else if (instance.status === 'waiting_qr') stats.waiting_qr++;
       else if (instance.status === 'reconnecting') stats.reconnecting++;
@@ -641,7 +647,41 @@ function startConnectionMonitor() {
         `${stats.disconnected} desconectados | ${stats.reconnecting} reconectando | ` +
         `${stats.waiting_qr} aguardando QR`);
     }
-  }, 5 * 60 * 1000); // A cada 5 minutos
+
+    // Reconectar instâncias desconectadas que possuem credenciais
+    if (disconnectedNumbers.length > 0) {
+      log('SYSTEM', null, `🔄 Iniciando reconexão automática de ${disconnectedNumbers.length} instância(s)...`);
+
+      for (const numero of disconnectedNumbers) {
+        const authPath = getAuthPath(numero);
+        const hasCredentials = fs.existsSync(path.join(authPath, "creds.json"));
+
+        if (hasCredentials) {
+          const instance = instances.get(numero);
+
+          // Só reconecta se não estiver em processo de conexão
+          if (instance && !instance.isConnecting) {
+            log('SYSTEM', numero, `🔌 Reconectando automaticamente...`);
+
+            // Reset tentativas para permitir nova reconexão
+            instance.reconnectAttempts = 0;
+
+            try {
+              await connectToWhatsApp(numero);
+              // Aguarda entre conexões para evitar rate limiting
+              await new Promise(resolve => setTimeout(resolve, 3000));
+            } catch (error) {
+              log('ERROR', numero, `Erro na reconexão automática: ${error.message}`);
+            }
+          }
+        } else {
+          log('INFO', numero, `Sem credenciais salvas - ignorando reconexão automática`);
+        }
+      }
+
+      log('SYSTEM', null, `✅ Reconexão automática concluída`);
+    }
+  }, 2 * 60 * 1000); // A cada 2 minutos
 }
 
 // Inicia servidor
