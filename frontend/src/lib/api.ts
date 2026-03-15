@@ -621,6 +621,89 @@ export interface SystemNotice {
   percentualLeitura?: number;
 }
 
+// Cron API
+export interface CronJob {
+  nome: string;
+  descricao: string;
+  horarioAgendado: string;
+  endpoint: string;
+}
+
+export interface NotificacaoRetry {
+  id: string;
+  devedor: string;
+  usuario: string;
+  tentativas: number;
+  proximaTentativa: string | null;
+  erro: string | null;
+}
+
+export interface NotificacaoFalha {
+  id: string;
+  devedor: string;
+  usuario: string;
+  tentativas: number;
+  erro: string | null;
+  atualizadoEm: string;
+}
+
+export interface CronStatus {
+  crons: CronJob[];
+  estatisticas: {
+    notificacoesHoje: number;
+    enviadasHoje: number;
+    aguardandoRetry: number;
+    falhasHoje: number;
+    dividasComNotificacaoAuto: number;
+  };
+  notificacoesAguardandoRetry: NotificacaoRetry[];
+  ultimasFalhas: NotificacaoFalha[];
+}
+
+export const cronApi = {
+  getStatus: async (): Promise<CronStatus> => {
+    const response = await api.get('/admin/crons/status');
+    return response.data;
+  },
+
+  executarNotificacoes: async (): Promise<{
+    message: string;
+    executadoPor: string;
+    iniciadoEm: string;
+  }> => {
+    const response = await api.post('/admin/crons/notificacoes');
+    return response.data;
+  },
+
+  executarRetry: async (): Promise<{
+    message: string;
+    executadoPor: string;
+    iniciadoEm: string;
+  }> => {
+    const response = await api.post('/admin/crons/retry');
+    return response.data;
+  },
+
+  forcarRetry: async (notificationId: string): Promise<{
+    message: string;
+    notificationId: string;
+  }> => {
+    const response = await api.post(`/admin/crons/retry/${notificationId}`);
+    return response.data;
+  },
+
+  limparFalhas: async (dias?: number): Promise<{
+    message: string;
+    diasAtras: number;
+    removidas: number;
+  }> => {
+    const response = await api.delete('/admin/crons/falhas', {
+      params: { dias },
+    });
+    return response.data;
+  },
+};
+
 export const systemNoticeApi = {
   // User endpoints
   list: async (): Promise<{ notices: SystemNotice[] }> => {

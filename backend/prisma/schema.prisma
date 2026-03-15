@@ -118,25 +118,30 @@ enum NotificationStatus {
   PENDENTE
   ENVIADO
   FALHOU
+  AGUARDANDO_RETRY
 }
 
 model Notification {
-  id            String             @id @default(uuid())
-  usuarioId     String             @map("usuario_id")
-  devedorId     String?            @map("devedor_id")
-  dividaId      String?            @map("divida_id")
-  telefone      String
-  mensagem      String
-  status        NotificationStatus @default(PENDENTE)
-  erroMensagem  String?            @map("erro_mensagem")
-  enviadoEm     DateTime?          @map("enviado_em")
-  criadoEm      DateTime           @default(now()) @map("criado_em")
-  atualizadoEm  DateTime           @updatedAt @map("atualizado_em")
+  id              String             @id @default(uuid())
+  usuarioId       String             @map("usuario_id")
+  devedorId       String?            @map("devedor_id")
+  dividaId        String?            @map("divida_id")
+  telefone        String
+  mensagem        String
+  status          NotificationStatus @default(PENDENTE)
+  erroMensagem    String?            @map("erro_mensagem")
+  tentativas      Int                @default(0)
+  proximaTentativa DateTime?         @map("proxima_tentativa")
+  telefoneUsuario String?            @map("telefone_usuario")
+  enviadoEm       DateTime?          @map("enviado_em")
+  criadoEm        DateTime           @default(now()) @map("criado_em")
+  atualizadoEm    DateTime           @updatedAt @map("atualizado_em")
 
   usuario       User               @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
   devedor       Debtor?            @relation(fields: [devedorId], references: [id], onDelete: Cascade)
   divida        Debt?              @relation(fields: [dividaId], references: [id], onDelete: Cascade)
 
+  @@index([status, proximaTentativa])
   @@map("notifications")
 }
 

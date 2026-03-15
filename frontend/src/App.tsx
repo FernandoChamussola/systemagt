@@ -23,6 +23,7 @@ import AdminDebts from './pages/AdminDebts';
 import AdminDebtors from './pages/AdminDebtors';
 import AdminNotices from './pages/AdminNotices';
 import AdminAccessLogs from './pages/AdminAccessLogs';
+import AdminCron from './pages/AdminCron';
 
 const queryClient = new QueryClient();
 
@@ -181,6 +182,16 @@ function App() {
                 <AdminProtectedRoute>
                   <AppLayout>
                     <AdminAccessLogs />
+                  </AppLayout>
+                </AdminProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/crons"
+              element={
+                <AdminProtectedRoute>
+                  <AppLayout>
+                    <AdminCron />
                   </AppLayout>
                 </AdminProtectedRoute>
               }

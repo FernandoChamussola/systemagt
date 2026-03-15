@@ -12,6 +12,13 @@ import {
   getAccessLogs,
 } from '../controllers/admin';
 import {
+  executarCronNotificacoes,
+  executarCronRetry,
+  getCronStatus,
+  forcarRetryNotificacao,
+  limparNotificacoesFalhas,
+} from '../controllers/cronController';
+import {
   listAllNotices,
   createNotice,
   updateNotice,
@@ -50,5 +57,12 @@ router.delete('/notices/:id', deleteNotice);
 
 // Access Logs
 router.get('/access-logs', getAccessLogs);
+
+// Cron Management
+router.get('/crons/status', getCronStatus);
+router.post('/crons/notificacoes', executarCronNotificacoes);
+router.post('/crons/retry', executarCronRetry);
+router.post('/crons/retry/:notificationId', forcarRetryNotificacao);
+router.delete('/crons/falhas', limparNotificacoesFalhas);
 
 export default router;
