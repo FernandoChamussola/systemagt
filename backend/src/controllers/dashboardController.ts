@@ -48,10 +48,9 @@ export async function getDashboardStats(req: AuthRequest, res: Response) {
       const totalPago = divida.pagamentos.reduce((sum: number, payment: any) => sum + payment.valor, 0);
       const valorRestante = valorComJuros - totalPago;
 
-      valorTotalEmprestado += divida.valorInicial;
-
       // Apenas contar dívidas não pagas
       if (divida.status !== 'PAGO') {
+        valorTotalEmprestado += divida.valorInicial;
         valorTotalAReceber += valorRestante;
 
         // Se estiver atrasada
