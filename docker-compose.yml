@@ -32,6 +32,8 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       PORT: 3000
       WHATSAPP_API_URL: http://whatsapp:3002/send
+      EMAIL_USER: ${EMAIL_USER}
+      EMAIL_APP_PASSWORD: ${EMAIL_APP_PASSWORD}
     depends_on:
       postgres:
         condition: service_healthy
