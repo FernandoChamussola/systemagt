@@ -80,6 +80,23 @@ export const authApi = {
     const response = await api.post('/auth/reset-password', { resetToken, novaSenha });
     return response.data;
   },
+
+  // Recuperação por Email
+  requestPasswordResetByEmail: async (email: string): Promise<{
+    message: string;
+    codeSentTo: string;
+  }> => {
+    const response = await api.post('/auth/request-password-reset-email', { email });
+    return response.data;
+  },
+
+  verifyResetCodeByEmail: async (email: string, codigo: string): Promise<{
+    message: string;
+    resetToken: string;
+  }> => {
+    const response = await api.post('/auth/verify-reset-code-email', { email, codigo });
+    return response.data;
+  },
 };
 
 export const debtorApi = {
