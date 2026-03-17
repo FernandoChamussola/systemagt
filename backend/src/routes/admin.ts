@@ -10,6 +10,9 @@ import {
   deleteDebt,
   getAllDebtors,
   getAccessLogs,
+  getEmailStatus,
+  sendEmailToUsers,
+  sendEmailToAllUsers,
 } from '../controllers/admin';
 import {
   executarCronNotificacoes,
@@ -64,5 +67,10 @@ router.post('/crons/notificacoes', executarCronNotificacoes);
 router.post('/crons/retry', executarCronRetry);
 router.post('/crons/retry/:notificationId', forcarRetryNotificacao);
 router.delete('/crons/falhas', limparNotificacoesFalhas);
+
+// Email Management
+router.get('/email/status', getEmailStatus);
+router.post('/email/send', sendEmailToUsers);
+router.post('/email/send-all', sendEmailToAllUsers);
 
 export default router;

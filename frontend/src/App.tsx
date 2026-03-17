@@ -24,6 +24,7 @@ import AdminDebtors from './pages/AdminDebtors';
 import AdminNotices from './pages/AdminNotices';
 import AdminAccessLogs from './pages/AdminAccessLogs';
 import AdminCron from './pages/AdminCron';
+import AdminEmail from './pages/AdminEmail';
 
 const queryClient = new QueryClient();
 
@@ -192,6 +193,16 @@ function App() {
                 <AdminProtectedRoute>
                   <AppLayout>
                     <AdminCron />
+                  </AppLayout>
+                </AdminProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/email"
+              element={
+                <AdminProtectedRoute>
+                  <AppLayout>
+                    <AdminEmail />
                   </AppLayout>
                 </AdminProtectedRoute>
               }

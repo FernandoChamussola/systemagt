@@ -179,6 +179,13 @@ async function executeCode(code: string, type: 'query' | 'mutation') {
 // ============================================
 
 import bcrypt from 'bcryptjs';
+import { z } from 'zod';
+import {
+  enviarMensagemAdmin,
+  enviarEmail,
+  isEmailConfigured,
+  testarConexaoEmail,
+} from '../services/emailService';
 
 /**
  * Dashboard Admin - Estatísticas do sistema
@@ -546,5 +553,196 @@ export async function getAccessLogs(req: AuthRequest, res: Response) {
   } catch (error) {
     console.error('Erro ao listar logs de acesso:', error);
     res.status(500).json({ error: 'Erro ao listar logs de acesso' });
+  }
+}
+
+// ============================================
+// FUNÇÕES DE EMAIL ADMIN
+// ============================================
+
+const sendEmailSchema = z.object({
+  userIds: z.array(z.string()).min(1, 'Selecione pelo menos um usuário'),
+  assunto: z.string().min(1, 'Assunto é obrigatório'),
+  mensagem: z.string().min(1, 'Mensagem é obrigatória'),
+});
+
+/**
+ * Verificar status do serviço de email
+ */
+export async function getEmailStatus(req: AuthRequest, res: Response) {
+  try {
+    const configured = isEmailConfigured();
+
+    if (!configured) {
+      return res.json({
+        configured: false,
+        connected: false,
+        message: 'Serviço de email não configurado. Configure EMAIL_USER e EMAIL_APP_PASSWORD.',
+      });
+    }
+
+    const conexao = await testarConexaoEmail();
+
+    res.json({
+      configured: true,
+      connected: conexao.sucesso,
+      message: conexao.sucesso ? 'Conexão com servidor de email OK' : conexao.erro,
+    });
+  } catch (error) {
+    console.error('Erro ao verificar status do email:', error);
+    res.status(500).json({ error: 'Erro ao verificar status do email' });
+  }
+}
+
+/**
+ * Enviar email para usuários selecionados
+ */
+export async function sendEmailToUsers(req: AuthRequest, res: Response) {
+  try {
+    const { userIds, assunto, mensagem } = sendEmailSchema.parse(req.body);
+
+    if (!isEmailConfigured()) {
+      return res.status(503).json({
+        error: 'Serviço de email não configurado',
+      });
+    }
+
+    // Buscar usuários
+    const users = await prisma.user.findMany({
+      where: {
+        id: { in: userIds },
+      },
+      select: {
+        id: true,
+        nome: true,
+        email: true,
+      },
+    });
+
+    if (users.length === 0) {
+      return res.status(404).json({
+        error: 'Nenhum usuário encontrado',
+      });
+    }
+
+    // Enviar emails
+    const resultados: Array<{
+      userId: string;
+      email: string;
+      sucesso: boolean;
+      erro?: string;
+    }> = [];
+
+    for (const user of users) {
+      const resultado = await enviarMensagemAdmin(
+        user.email,
+        user.nome,
+        assunto,
+        mensagem
+      );
+
+      resultados.push({
+        userId: user.id,
+        email: user.email,
+        sucesso: resultado.sucesso,
+        erro: resultado.erro,
+      });
+    }
+
+    const enviados = resultados.filter(r => r.sucesso).length;
+    const falhas = resultados.filter(r => !r.sucesso).length;
+
+    res.json({
+      message: `Emails processados: ${enviados} enviados, ${falhas} falhas`,
+      total: users.length,
+      enviados,
+      falhas,
+      detalhes: resultados,
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: error.errors[0].message });
+    }
+    console.error('Erro ao enviar emails:', error);
+    res.status(500).json({ error: 'Erro ao enviar emails' });
+  }
+}
+
+/**
+ * Enviar email para todos os usuários ativos
+ */
+export async function sendEmailToAllUsers(req: AuthRequest, res: Response) {
+  try {
+    const { assunto, mensagem } = z
+      .object({
+        assunto: z.string().min(1, 'Assunto é obrigatório'),
+        mensagem: z.string().min(1, 'Mensagem é obrigatória'),
+      })
+      .parse(req.body);
+
+    if (!isEmailConfigured()) {
+      return res.status(503).json({
+        error: 'Serviço de email não configurado',
+      });
+    }
+
+    // Buscar todos os usuários ativos
+    const users = await prisma.user.findMany({
+      where: { isActive: true },
+      select: {
+        id: true,
+        nome: true,
+        email: true,
+      },
+    });
+
+    if (users.length === 0) {
+      return res.status(404).json({
+        error: 'Nenhum usuário ativo encontrado',
+      });
+    }
+
+    // Enviar emails em lotes para evitar sobrecarga
+    const resultados: Array<{
+      userId: string;
+      email: string;
+      sucesso: boolean;
+      erro?: string;
+    }> = [];
+
+    for (const user of users) {
+      const resultado = await enviarMensagemAdmin(
+        user.email,
+        user.nome,
+        assunto,
+        mensagem
+      );
+
+      resultados.push({
+        userId: user.id,
+        email: user.email,
+        sucesso: resultado.sucesso,
+        erro: resultado.erro,
+      });
+
+      // Pequeno delay para não sobrecarregar o SMTP
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+
+    const enviados = resultados.filter(r => r.sucesso).length;
+    const falhas = resultados.filter(r => !r.sucesso).length;
+
+    res.json({
+      message: `Emails processados: ${enviados} enviados, ${falhas} falhas`,
+      total: users.length,
+      enviados,
+      falhas,
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: error.errors[0].message });
+    }
+    console.error('Erro ao enviar emails:', error);
+    res.status(500).json({ error: 'Erro ao enviar emails' });
   }
 }

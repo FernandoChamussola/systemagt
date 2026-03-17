@@ -704,6 +704,50 @@ export const cronApi = {
   },
 };
 
+// Email API
+export interface EmailStatus {
+  configured: boolean;
+  connected: boolean;
+  message: string;
+}
+
+export interface EmailSendResult {
+  message: string;
+  total: number;
+  enviados: number;
+  falhas: number;
+  detalhes?: Array<{
+    userId: string;
+    email: string;
+    sucesso: boolean;
+    erro?: string;
+  }>;
+}
+
+export const emailApi = {
+  getStatus: async (): Promise<EmailStatus> => {
+    const response = await api.get('/admin/email/status');
+    return response.data;
+  },
+
+  sendToUsers: async (data: {
+    userIds: string[];
+    assunto: string;
+    mensagem: string;
+  }): Promise<EmailSendResult> => {
+    const response = await api.post('/admin/email/send', data);
+    return response.data;
+  },
+
+  sendToAll: async (data: {
+    assunto: string;
+    mensagem: string;
+  }): Promise<EmailSendResult> => {
+    const response = await api.post('/admin/email/send-all', data);
+    return response.data;
+  },
+};
+
 export const systemNoticeApi = {
   // User endpoints
   list: async (): Promise<{ notices: SystemNotice[] }> => {

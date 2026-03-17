@@ -7,6 +7,7 @@ import jwt from 'jsonwebtoken';
 import { generateToken } from '../utils/jwt';
 import { AuthRequest } from '../types';
 import { enviarWhatsApp, formatarTelefone } from './notificationController';
+import { enviarCodigoRecuperacao, isEmailConfigured } from '../services/emailService';
 
 const prisma = new PrismaClient();
 
@@ -24,6 +25,10 @@ const loginSchema = z.object({
 
 const requestResetSchema = z.object({
   telefone: z.string().min(9, 'Telefone invalido'),
+});
+
+const requestResetByEmailSchema = z.object({
+  email: z.string().email('Email invalido'),
 });
 
 const verifyCodeSchema = z.object({
@@ -439,5 +444,182 @@ export async function resetPassword(req: Request, res: Response) {
     }
     console.error('Erro ao resetar senha:', error);
     res.status(500).json({ error: 'Erro ao resetar senha' });
+  }
+}
+
+export async function requestPasswordResetByEmail(req: Request, res: Response) {
+  try {
+    const { email } = requestResetByEmailSchema.parse(req.body);
+
+    // Verificar se o serviço de email está configurado
+    if (!isEmailConfigured()) {
+      return res.status(503).json({
+        error: 'Serviço de email não configurado. Use recuperação por WhatsApp.',
+      });
+    }
+
+    // Buscar usuário pelo email
+    const user = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        error: 'Nenhuma conta encontrada com este email',
+      });
+    }
+
+    // Rate limiting: Verificar se usuário solicitou código recentemente (últimos 2 minutos)
+    const recentToken = await prisma.passwordResetToken.findFirst({
+      where: {
+        userId: user.id,
+        criadoEm: {
+          gte: new Date(Date.now() - 2 * 60 * 1000),
+        },
+      },
+      orderBy: { criadoEm: 'desc' },
+    });
+
+    if (recentToken) {
+      const waitSeconds = Math.ceil(
+        (120000 - (Date.now() - recentToken.criadoEm.getTime())) / 1000
+      );
+      return res.status(429).json({
+        error: `Aguarde ${waitSeconds} segundos antes de solicitar novo código`,
+      });
+    }
+
+    // Invalidar todos os tokens anteriores do usuário
+    await prisma.passwordResetToken.updateMany({
+      where: {
+        userId: user.id,
+        usado: false,
+      },
+      data: {
+        usado: true,
+      },
+    });
+
+    // Gerar código de 6 dígitos
+    const codigo = crypto.randomInt(100000, 999999).toString();
+
+    // Criar token com expiração de 10 minutos
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+    await prisma.passwordResetToken.create({
+      data: {
+        userId: user.id,
+        telefone: user.telefone || email, // Usar email como identificador se não tiver telefone
+        codigo,
+        expiraEm: expiresAt,
+      },
+    });
+
+    // Enviar email com código
+    const resultado = await enviarCodigoRecuperacao(email, user.nome, codigo);
+
+    if (!resultado.sucesso) {
+      console.error('Erro ao enviar email:', resultado.erro);
+      return res.status(500).json({
+        error: 'Erro ao enviar código por email. Tente novamente.',
+      });
+    }
+
+    // Mascarar email para segurança
+    const [localPart, domain] = email.split('@');
+    const maskedEmail =
+      localPart.slice(0, 2) + '***' + '@' + domain;
+
+    res.json({
+      message: 'Código enviado com sucesso',
+      codeSentTo: maskedEmail,
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: error.errors[0].message });
+    }
+    console.error('Erro ao solicitar recuperação de senha por email:', error);
+    res.status(500).json({ error: 'Erro ao processar solicitação' });
+  }
+}
+
+export async function verifyResetCodeByEmail(req: Request, res: Response) {
+  try {
+    const { email, codigo } = z
+      .object({
+        email: z.string().email('Email invalido'),
+        codigo: z.string().length(6, 'Código deve ter 6 dígitos'),
+      })
+      .parse(req.body);
+
+    // Buscar usuário pelo email
+    const user = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (!user) {
+      return res.status(400).json({
+        error: 'Código inválido ou expirado',
+      });
+    }
+
+    // Buscar token válido
+    const token = await prisma.passwordResetToken.findFirst({
+      where: {
+        userId: user.id,
+        codigo,
+        usado: false,
+        expiraEm: {
+          gte: new Date(),
+        },
+      },
+      orderBy: { criadoEm: 'desc' },
+    });
+
+    if (!token) {
+      return res.status(400).json({
+        error: 'Código inválido ou expirado',
+      });
+    }
+
+    // Verificar tentativas (máximo 5)
+    if (token.tentativas >= 5) {
+      await prisma.passwordResetToken.update({
+        where: { id: token.id },
+        data: { usado: true },
+      });
+
+      return res.status(429).json({
+        error: 'Muitas tentativas. Solicite um novo código.',
+      });
+    }
+
+    // Incrementar tentativas
+    await prisma.passwordResetToken.update({
+      where: { id: token.id },
+      data: { tentativas: token.tentativas + 1 },
+    });
+
+    // Gerar token temporário de reset
+    const resetToken = jwt.sign(
+      {
+        tokenId: token.id,
+        userId: token.userId,
+        type: 'password-reset',
+      },
+      process.env.JWT_SECRET || 'fallback-secret-change-me',
+      { expiresIn: '15m' }
+    );
+
+    res.json({
+      message: 'Código verificado com sucesso',
+      resetToken,
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: error.errors[0].message });
+    }
+    console.error('Erro ao verificar código:', error);
+    res.status(500).json({ error: 'Erro ao verificar código' });
   }
 }
