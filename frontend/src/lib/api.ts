@@ -618,6 +618,90 @@ export const adminApi = {
     const response = await api.get('/admin/access-logs', { params });
     return response.data;
   },
+
+  getSurveyResponses: async (modalId?: string): Promise<{
+    responses: SurveyResponse[];
+    stats: {
+      total: number;
+      byAnswer: Record<string, number>;
+    };
+  }> => {
+    const response = await api.get('/admin/survey-responses', {
+      params: { modalId },
+    });
+    return response.data;
+  },
+
+  getSurveyModals: async (): Promise<{ modals: SurveyModal[] }> => {
+    const response = await api.get('/admin/survey-modals');
+    return response.data;
+  },
+
+  createSurveyModal: async (data: SurveyModalInput): Promise<{ modal: SurveyModal }> => {
+    const response = await api.post('/admin/survey-modals', data);
+    return response.data;
+  },
+
+  updateSurveyModal: async (
+    modalId: string,
+    data: Partial<SurveyModalInput>
+  ): Promise<{ modal: SurveyModal }> => {
+    const response = await api.put(`/admin/survey-modals/${modalId}`, data);
+    return response.data;
+  },
+
+  deleteSurveyModal: async (modalId: string): Promise<{ message: string }> => {
+    const response = await api.delete(`/admin/survey-modals/${modalId}`);
+    return response.data;
+  },
+};
+
+export interface SurveyResponse {
+  id: string;
+  modalId: string;
+  modalTitulo: string;
+  userId: string;
+  nome: string;
+  email: string;
+  resposta: string;
+  respondidoEm: string;
+}
+
+export interface SurveyModal {
+  id: string;
+  titulo: string;
+  descricao?: string;
+  pergunta: string;
+  opcoes: string[];
+  ativo: boolean;
+  criadoEm: string;
+  atualizadoEm: string;
+  totalRespostas?: number;
+}
+
+export interface SurveyModalInput {
+  titulo: string;
+  descricao?: string;
+  pergunta: string;
+  opcoes: string[];
+  ativo?: boolean;
+}
+
+export const surveyApi = {
+  getPending: async (): Promise<{
+    modal: SurveyModal | null;
+  }> => {
+    const response = await api.get('/survey/pending');
+    return response.data;
+  },
+
+  submit: async (modalId: string, resposta: string): Promise<{
+    message: string;
+    response: SurveyResponse;
+  }> => {
+    const response = await api.post('/survey/responses', { modalId, resposta });
+    return response.data;
+  },
 };
 
 // System Notices API

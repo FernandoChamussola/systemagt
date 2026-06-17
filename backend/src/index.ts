@@ -12,6 +12,7 @@ import notificationRoutes from './routes/notificationRoutes';
 import reportRoutes from './routes/reportRoutes';
 import adminRoutes from './routes/admin';
 import systemNoticeRoutes from './routes/systemNoticeRoutes';
+import surveyRoutes from './routes/surveyRoutes';
 import { iniciarCronNotificacoes } from './services/notificationCron';
 import { iniciarCronStatusDividas } from './services/debtStatusCron';
 
@@ -54,6 +55,7 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/system-notices', systemNoticeRoutes);
+app.use('/api/survey', surveyRoutes);
 
 app.listen(PORT, () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`);

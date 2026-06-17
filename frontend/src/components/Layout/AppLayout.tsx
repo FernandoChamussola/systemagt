@@ -4,6 +4,7 @@ import { Sheet, SheetContent } from '@/components/ui/sheet';
 import Sidebar from './Sidebar';
 import AdminSidebar from './AdminSidebar';
 import Navbar from './Navbar';
+import FeedbackSurveyModal from '@/components/FeedbackSurveyModal';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -39,6 +40,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
           {children}
         </main>
       </div>
+
+      {!isAdminRoute && <FeedbackSurveyModal />}
     </div>
   );
 }

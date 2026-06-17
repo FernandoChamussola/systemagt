@@ -27,6 +27,13 @@ import {
   updateNotice,
   deleteNotice,
 } from '../controllers/systemNoticeController';
+import {
+  createAdminSurveyModal,
+  deleteAdminSurveyModal,
+  listAdminSurveyModals,
+  listSurveyResponses,
+  updateAdminSurveyModal,
+} from '../controllers/surveyController';
 import { authMiddleware } from '../middlewares/auth';
 import { adminMiddleware } from '../middlewares/adminAuth';
 
@@ -60,6 +67,13 @@ router.delete('/notices/:id', deleteNotice);
 
 // Access Logs
 router.get('/access-logs', getAccessLogs);
+
+// Survey
+router.get('/survey-modals', listAdminSurveyModals);
+router.post('/survey-modals', createAdminSurveyModal);
+router.put('/survey-modals/:modalId', updateAdminSurveyModal);
+router.delete('/survey-modals/:modalId', deleteAdminSurveyModal);
+router.get('/survey-responses', listSurveyResponses);
 
 // Cron Management
 router.get('/crons/status', getCronStatus);

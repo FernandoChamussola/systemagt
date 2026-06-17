@@ -1,0 +1,50 @@
+{
+  "modals": [
+    {
+      "id": "afd120ce-d838-46df-9e9d-971077be4edd",
+      "titulo": "ok",
+      "descricao": "ok",
+      "pergunta": "ok?",
+      "opcoes": [
+        "Sim",
+        "Nao",
+        "ok"
+      ],
+      "ativo": true,
+      "criadoEm": "2026-06-17T11:31:35.144Z",
+      "atualizadoEm": "2026-06-17T11:31:35.144Z"
+    }
+  ],
+  "responses": [
+    {
+      "id": "ba55b48c-eed9-4028-bc93-bb672ab30bf1",
+      "modalId": "afd120ce-d838-46df-9e9d-971077be4edd",
+      "modalTitulo": "ok",
+      "userId": "daf049bb-f85a-4750-a136-e8a8b5afd9a0",
+      "nome": "aaa",
+      "email": "a@gmail.com",
+      "resposta": "Sim",
+      "respondidoEm": "2026-06-17T11:32:07.777Z"
+    },
+    {
+      "id": "fd6c2906-e305-4323-970d-f240c682809b",
+      "modalId": "afd120ce-d838-46df-9e9d-971077be4edd",
+      "modalTitulo": "ok",
+      "userId": "55482ade-7d83-495c-b311-d528c945df70",
+      "nome": "Admin",
+      "email": "admin@gmail.com",
+      "resposta": "Nao",
+      "respondidoEm": "2026-06-17T11:39:51.239Z"
+    },
+    {
+      "id": "eca9d662-e8f6-4b1b-ad77-95e7b583e9b6",
+      "modalId": "afd120ce-d838-46df-9e9d-971077be4edd",
+      "modalTitulo": "ok",
+      "userId": "d4c92804-3b72-4345-abdf-668bff5653c6",
+      "nome": "bbb",
+      "email": "b@gmail.com",
+      "resposta": "ok",
+      "respondidoEm": "2026-06-17T11:48:51.742Z"
+    }
+  ]
+}
