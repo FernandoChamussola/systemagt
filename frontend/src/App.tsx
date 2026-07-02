@@ -26,6 +26,7 @@ import AdminAccessLogs from './pages/AdminAccessLogs';
 import AdminCron from './pages/AdminCron';
 import AdminEmail from './pages/AdminEmail';
 import AdminSurveyResponses from './pages/AdminSurveyResponses';
+import Prespectiva from './pages/Prespectiva';
 
 const queryClient = new QueryClient();
 
@@ -125,6 +126,22 @@ function App() {
                   <AppLayout>
                     <Avisos />
                   </AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/prespectiva"
+              element={
+                <ProtectedRoute>
+                  <Prespectiva />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/retrospectiva"
+              element={
+                <ProtectedRoute>
+                  <Prespectiva />
                 </ProtectedRoute>
               }
             />

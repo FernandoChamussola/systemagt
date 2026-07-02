@@ -1,16 +1,50 @@
+import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { dashboardApi } from '@/lib/api';
-import { Users, DollarSign, TrendingUp, AlertCircle, Calendar, Clock } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Users, DollarSign, TrendingUp, AlertCircle, Calendar, Clock, Sparkles } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function Dashboard() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const [showRetrospectiveInvite, setShowRetrospectiveInvite] = useState(false);
+
   const { data, isLoading } = useQuery({
     queryKey: ['dashboard-stats'],
     queryFn: () => dashboardApi.getStats(),
   });
+
+  useEffect(() => {
+    if (!user || user.role === 'ADMIN') return;
+
+    const year = new Date().getFullYear();
+    const storageKey = `systemagt-retrospective-invite:${user.id}:${year}`;
+
+    if (localStorage.getItem(storageKey) !== 'true') {
+      const timeout = window.setTimeout(() => {
+        setShowRetrospectiveInvite(true);
+      }, 700);
+
+      return () => window.clearTimeout(timeout);
+    }
+  }, [user]);
+
+  const closeRetrospectiveInvite = (markAsSeen = false) => {
+    if (user && markAsSeen) {
+      const year = new Date().getFullYear();
+      localStorage.setItem(`systemagt-retrospective-invite:${user.id}:${year}`, 'true');
+    }
+    setShowRetrospectiveInvite(false);
+  };
+
+  const openRetrospective = () => {
+    closeRetrospectiveInvite();
+    navigate('/prespectiva');
+  };
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-MZ', {
@@ -50,6 +84,44 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
+      {showRetrospectiveInvite && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 px-4 py-4 backdrop-blur-sm sm:items-center">
+          <div className="relative w-full max-w-xl overflow-hidden rounded-lg border border-emerald-400/30 bg-zinc-950 p-6 text-white shadow-2xl sm:p-8">
+            <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full bg-emerald-400/20 blur-3xl" />
+            <div className="absolute -bottom-20 -left-12 h-44 w-44 rounded-full bg-amber-400/10 blur-3xl" />
+
+            <div className="relative">
+              <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-lg bg-emerald-400/15 text-emerald-300">
+                <Sparkles className="h-6 w-6" />
+              </div>
+
+              <p className="text-sm font-semibold uppercase text-emerald-300">Retrospectiva de meio do ano</p>
+              <h2 className="mt-3 text-2xl font-bold leading-tight sm:text-3xl">
+                Ja chegamos ao meio do ano. Vamos ver o que voce construiu ate aqui?
+              </h2>
+              <p className="mt-4 text-sm leading-6 text-zinc-300 sm:text-base">
+                O sistema preparou um olhar especial sobre o seu percurso ate agora.
+              </p>
+
+              <div className="mt-6 grid gap-3 sm:grid-cols-[1fr_auto]">
+                <Button onClick={openRetrospective} className="min-h-12 bg-emerald-500 text-white hover:bg-emerald-400">
+                  <Sparkles className="mr-2 h-4 w-4" />
+                  Ver retrospectiva
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="min-h-12 border-zinc-700 bg-zinc-900 text-white hover:bg-zinc-800 hover:text-white"
+                  onClick={() => closeRetrospectiveInvite()}
+                >
+                  Agora nao
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div>
         <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
         <p className="text-muted-foreground mt-1">Visão geral do seu sistema de gestão</p>
@@ -290,10 +362,12 @@ export default function Dashboard() {
                 Cadastrar Dívida
               </Button>
             </Link>
-            <Button variant="outline" className="w-full" disabled>
-              <AlertCircle className="mr-2 h-4 w-4" />
-              Notificações
-            </Button>
+            <Link to="/prespectiva">
+              <Button variant="outline" className="w-full">
+                <Sparkles className="mr-2 h-4 w-4" />
+                Retrospectiva
+              </Button>
+            </Link>
           </div>
         </CardContent>
       </Card>

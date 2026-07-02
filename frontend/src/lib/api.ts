@@ -312,6 +312,58 @@ export const dashboardApi = {
   },
 };
 
+export interface MidYearRetrospective {
+  year: number;
+  period: {
+    start: string;
+    end: string;
+  };
+  user: {
+    nome: string;
+    criadoEm: string | null;
+  };
+  totals: {
+    debtors: number;
+    debts: number;
+    payments: number;
+    totalLent: number;
+    totalCurrent: number;
+    totalPaid: number;
+    capitalRecovered: number;
+    realizedProfit: number;
+    expectedProfit: number;
+    remainingProfit: number;
+    paidDebts: number;
+    pendingDebts: number;
+    overdueDebts: number;
+    overdueAmount: number;
+  };
+  moments: {
+    firstDebt: { date: string; debtor: string; amount: number } | null;
+    firstDebtor: { date: string; debtor: string } | null;
+    biggestDebt: { date: string; debtor: string; amount: number } | null;
+    firstPayment: { date: string; debtor: string; amount: number } | null;
+    biggestPayment: { date: string; debtor: string; amount: number } | null;
+    strongestMonth: {
+      month: number;
+      debts: number;
+      payments: number;
+      lent: number;
+      paid: number;
+    } | null;
+    frequentDebtor: { debtor: string; debts: number } | null;
+    nextDueDebt: { date: string; debtor: string; amount: number } | null;
+    oldestOverdueDebt: { date: string; debtor: string; amount: number } | null;
+  };
+}
+
+export const retrospectiveApi = {
+  getMidYear: async (): Promise<MidYearRetrospective> => {
+    const response = await api.get('/retrospective/mid-year');
+    return response.data;
+  },
+};
+
 export type NotificationStatus = 'PENDENTE' | 'ENVIADO' | 'FALHOU';
 
 export interface Notification {
