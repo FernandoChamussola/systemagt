@@ -30,7 +30,7 @@ export default function AdminSidebar({ className, onItemClick }: AdminSidebarPro
   }
 
   return (
-    <aside className={cn('flex flex-col h-full bg-gradient-to-b from-purple-900 to-purple-800 text-white', className)}>
+    <aside className={cn('flex flex-col h-full bg-gradient-to-b from-purple-900 to-purple-800 text-white lg:rounded-2xl lg:shadow-xl lg:border lg:border-purple-700/50', className)}>
       {/* Logo */}
       <div className="p-6 border-b border-purple-700">
         <div className="flex items-center gap-3">
@@ -45,7 +45,7 @@ export default function AdminSidebar({ className, onItemClick }: AdminSidebarPro
       </div>
 
       {/* Menu */}
-      <nav className="flex-1 p-4 space-y-1">
+      <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
         {adminMenuItems.map((item) => {
           const Icon = item.icon;
           const isActive = location.pathname === item.path;

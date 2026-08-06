@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { debtApi, debtorApi, Debt, DebtStatus } from '@/lib/api';
+import { debtApi, debtorApi, paymentApi, Debt, DebtStatus } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import {
@@ -67,11 +67,18 @@ const selectionTourSteps: TourStep[] = [
 ];
 
 export default function Dividas() {
-  const [statusFilter, setStatusFilter] = useState<DebtStatus | 'TODAS'>('TODAS');
+  const [statusFilter, setStatusFilter] = useState<DebtStatus | 'TODAS'>('PENDENTE');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showIncreaseInterestModal, setShowIncreaseInterestModal] = useState(false);
+  const [showQuickPaymentModal, setShowQuickPaymentModal] = useState(false);
+  const [quickPaymentDebt, setQuickPaymentDebt] = useState<Debt | null>(null);
+  const [quickPaymentForm, setQuickPaymentForm] = useState({
+    valor: '',
+    dataPagamento: new Date().toISOString().split('T')[0],
+    descricao: '',
+  });
   const [selectedDebt, setSelectedDebt] = useState<Debt | null>(null);
   const [novoJuros, setNovoJuros] = useState('');
   const [formData, setFormData] = useState({
@@ -91,6 +98,42 @@ export default function Dividas() {
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  const createPaymentMutation = useMutation({
+    mutationFn: paymentApi.create,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['debts'] });
+      setShowQuickPaymentModal(false);
+      setQuickPaymentDebt(null);
+      setQuickPaymentForm({
+        valor: '',
+        dataPagamento: new Date().toISOString().split('T')[0],
+        descricao: '',
+      });
+      toast({
+        title: 'Pagamento registrado!',
+        description: 'O pagamento foi adicionado com sucesso.',
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Erro ao registrar pagamento',
+        description: error.response?.data?.error || 'Tente novamente.',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  function openQuickPayment(debt: Debt, e: React.MouseEvent) {
+    e.stopPropagation();
+    setQuickPaymentDebt(debt);
+    setQuickPaymentForm({
+      valor: '',
+      dataPagamento: new Date().toISOString().split('T')[0],
+      descricao: '',
+    });
+    setShowQuickPaymentModal(true);
+  }
 
   const { data: debtsData, isLoading } = useQuery({
     queryKey: ['debts', statusFilter],
@@ -509,6 +552,19 @@ export default function Dividas() {
                       {debt.status}
                     </span>
                   </div>
+
+                  {/* Botão Registar Pagamento (canto superior direito do card) */}
+                  {!isSelectionMode && debt.status !== 'PAGO' && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-[11px] h-7 px-2 border-primary/40 text-primary hover:bg-primary/10 gap-1"
+                      onClick={(e) => openQuickPayment(debt, e)}
+                    >
+                      <Plus className="w-3 h-3" />
+                      Pagamento
+                    </Button>
+                  )}
                 </div>
 
                 <div className="space-y-3 mb-4">
@@ -1002,6 +1058,114 @@ export default function Dividas() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Modal Registo Rápido de Pagamento */}
+      {quickPaymentDebt && (() => {
+        const totalPago = quickPaymentDebt.pagamentos?.reduce((sum, p) => sum + p.valor, 0) || 0;
+        const valorRestante = quickPaymentDebt.valorAtual - totalPago;
+        const valorInserido = parseFloat(quickPaymentForm.valor) || 0;
+        const valorValido = valorInserido > 0 && valorInserido <= valorRestante;
+
+        return (
+          <Dialog open={showQuickPaymentModal} onOpenChange={(open) => {
+            setShowQuickPaymentModal(open);
+            if (!open) setQuickPaymentDebt(null);
+          }}>
+            <DialogContent className="max-w-sm">
+              <DialogHeader>
+                <DialogTitle>Registar Pagamento</DialogTitle>
+                <DialogDescription>
+                  {quickPaymentDebt.devedor?.nome || 'Devedor'}
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-4">
+                {/* Resumo financeiro */}
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="bg-muted/60 rounded-lg p-3 text-center">
+                    <p className="text-[10px] text-muted-foreground mb-0.5">Total</p>
+                    <p className="text-sm font-bold text-foreground">{quickPaymentDebt.valorAtual.toLocaleString('pt-MZ')} MT</p>
+                  </div>
+                  <div className="bg-green-500/10 rounded-lg p-3 text-center">
+                    <p className="text-[10px] text-muted-foreground mb-0.5">Pago</p>
+                    <p className="text-sm font-bold text-green-600">{totalPago.toLocaleString('pt-MZ')} MT</p>
+                  </div>
+                  <div className="bg-red-500/10 rounded-lg p-3 text-center">
+                    <p className="text-[10px] text-muted-foreground mb-0.5">Restante</p>
+                    <p className="text-sm font-bold text-red-500">{valorRestante.toLocaleString('pt-MZ')} MT</p>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="qp-valor">Valor a pagar (MT) *</Label>
+                  <Input
+                    id="qp-valor"
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    max={valorRestante}
+                    value={quickPaymentForm.valor}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      // Impede inserir mais do que o valor restante
+                      if (parseFloat(v) > valorRestante) return;
+                      setQuickPaymentForm({ ...quickPaymentForm, valor: v });
+                    }}
+                    placeholder={`Máx. ${valorRestante.toLocaleString('pt-MZ')} MT`}
+                    className={parseFloat(quickPaymentForm.valor) > valorRestante ? 'border-red-500' : ''}
+                  />
+                  {parseFloat(quickPaymentForm.valor) > valorRestante && (
+                    <p className="text-xs text-red-500">O valor não pode ultrapassar o restante a pagar.</p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="qp-data">Data do Pagamento *</Label>
+                  <Input
+                    id="qp-data"
+                    type="date"
+                    value={quickPaymentForm.dataPagamento}
+                    onChange={(e) => setQuickPaymentForm({ ...quickPaymentForm, dataPagamento: e.target.value })}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="qp-descricao">Descrição (opcional)</Label>
+                  <Input
+                    id="qp-descricao"
+                    type="text"
+                    value={quickPaymentForm.descricao}
+                    onChange={(e) => setQuickPaymentForm({ ...quickPaymentForm, descricao: e.target.value })}
+                    placeholder="Ex: Pagamento parcial"
+                  />
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button variant="outline" onClick={() => { setShowQuickPaymentModal(false); setQuickPaymentDebt(null); }}>
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={() => {
+                    if (!quickPaymentDebt || !valorValido) return;
+                    createPaymentMutation.mutate({
+                      dividaId: quickPaymentDebt.id,
+                      valor: parseFloat(quickPaymentForm.valor),
+                      dataPagamento: quickPaymentForm.dataPagamento,
+                      descricao: quickPaymentForm.descricao || undefined,
+                    });
+                  }}
+                  disabled={!valorValido || createPaymentMutation.isPending}
+                >
+                  {createPaymentMutation.isPending ? (
+                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Registrando...</>
+                  ) : 'Registrar'}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
 
       {/* Guided Tour para seleção múltipla */}
       {filteredDebts.length > 0 && (

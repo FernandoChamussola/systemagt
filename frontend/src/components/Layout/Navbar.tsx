@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
-import { Menu, LogOut, User, Settings } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { Menu, LogOut, User, Settings, DollarSign } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -21,6 +21,9 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
   const navigate = useNavigate();
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
 
+  const location = useLocation();
+  const isAdminRoute = location.pathname.startsWith('/admin');
+
   async function handleLogout() {
     await logout();
     navigate('/login');
@@ -28,16 +31,26 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
 
   return (
     <>
-      <header className="h-16 border-b border-border bg-card px-4 flex items-center justify-between sticky top-0 z-40">
-        {/* Menu button (mobile) */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="lg:hidden"
-          onClick={onMenuClick}
-        >
-          <Menu className="h-5 w-5" />
-        </Button>
+      <header className="h-16 border-b lg:border border-border bg-card px-4 flex items-center justify-between sticky top-0 lg:top-4 z-40 lg:rounded-2xl lg:shadow-sm">
+        {/* Menu button (mobile, only for admin routes) */}
+        {isAdminRoute ? (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="lg:hidden"
+            onClick={onMenuClick}
+          >
+            <Menu className="h-5 w-5" />
+          </Button>
+        ) : (
+          /* Logo (mobile only, hidden on desktop and admin routes) */
+          <div className="flex items-center gap-2 lg:hidden">
+            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+              <DollarSign className="w-4 h-4 text-primary" />
+            </div>
+            <span className="font-bold text-sm text-foreground">DebtTracker</span>
+          </div>
+        )}
 
         {/* Page title (hidden on mobile) */}
         <div className="hidden lg:block">

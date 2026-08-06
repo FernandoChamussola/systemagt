@@ -31,7 +31,7 @@ export default function Sidebar({ className, onItemClick }: SidebarProps) {
   const unreadCount = unreadData?.unreadCount || 0;
 
   return (
-    <aside className={cn('flex flex-col h-full bg-card border-r border-border', className)}>
+    <aside className={cn('flex flex-col h-full bg-card border-r border-border lg:border lg:rounded-2xl lg:shadow-sm', className)}>
       {/* Logo */}
       <div className="p-6 border-b border-border">
         <div className="flex items-center gap-3">
@@ -46,7 +46,7 @@ export default function Sidebar({ className, onItemClick }: SidebarProps) {
       </div>
 
       {/* Menu */}
-      <nav className="flex-1 p-4 space-y-1">
+      <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
         {menuItems.map((item) => {
           const Icon = item.icon;
           const isActive = location.pathname === item.path;
@@ -81,7 +81,7 @@ export default function Sidebar({ className, onItemClick }: SidebarProps) {
       {/* Footer */}
       <div className="p-4 border-t border-border">
         <div className="px-4 py-3 bg-primary/5 rounded-lg">
-          <p className="text-xs text-muted-foreground">Versão 1.5.0</p>
+          <p className="text-xs text-muted-foreground">Versão 1.6.0</p>
           <p className="text-xs text-muted-foreground mt-1">© 2026 DebtTracker</p>
         </div>
       </div>
