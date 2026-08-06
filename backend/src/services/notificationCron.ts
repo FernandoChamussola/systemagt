@@ -1,6 +1,7 @@
 import cron from 'node-cron';
 import { PrismaClient } from '@prisma/client';
 import { enviarWhatsApp, gerarMensagemCobranca } from '../controllers/notificationController';
+import  { enviarEmail } from './emailService';
 
 const prisma = new PrismaClient();
 
@@ -299,6 +300,7 @@ async function processarNotificacoesRetry() {
         console.log(`❌ [RETRY] ${notif.devedor?.nome || 'Devedor'}: Falha definitiva após ${notif.tentativas} tentativas`);
         falhasDefinitivas++;
         continue;
+        notificarUserComEmail(notif.usuario?.email, notif.devedor?.nome);
       }
 
       console.log(`📤 [RETRY] Tentando reenviar para ${notif.devedor?.nome || 'Devedor'} (ciclo ${cicloAtual}/${MAX_CICLOS_RETRY})...`);
@@ -381,6 +383,21 @@ async function processarNotificacoesRetry() {
   } finally {
     processandoRetry = false;
   }
+}
+
+
+async function notificarUserComEmail(to : any , who : any) {
+  console.log('📧 [EMAIL] Notificando usuário sobre falha definitiva na notificação...');
+  try {
+  await enviarEmail({
+    to: to,
+    subject: 'Falha na Notificação',
+    text: 'Houve uma falha definitiva na notificação ao ' + who + '.'
+  });
+}catch (error) {
+  console.error('❌ [EMAIL] Erro ao enviar email de notificação:', error);
+}
+
 }
 
 // Função para enviar resumo para os usuários
