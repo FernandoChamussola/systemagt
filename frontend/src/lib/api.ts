@@ -38,9 +38,28 @@ export interface Debtor {
   atualizadoEm: string;
 }
 
+export interface RegisterResponse {
+  message: string;
+  codeSentTo: string;
+  requiresVerification: true;
+}
+
 export const authApi = {
-  register: async (data: { nome: string; email: string; senha: string; telefone?: string }): Promise<AuthResponse> => {
+  register: async (data: { nome: string; email: string; senha: string; telefone?: string }): Promise<RegisterResponse> => {
     const response = await api.post('/auth/register', data);
+    return response.data;
+  },
+
+  verifyRegistration: async (email: string, codigo: string): Promise<AuthResponse> => {
+    const response = await api.post('/auth/verify-registration', { email, codigo });
+    return response.data;
+  },
+
+  resendRegistrationCode: async (email: string): Promise<{
+    message: string;
+    codeSentTo: string;
+  }> => {
+    const response = await api.post('/auth/resend-registration-code', { email });
     return response.data;
   },
 

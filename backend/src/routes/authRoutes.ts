@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import {
   register,
+  verifyRegistration,
+  resendRegistrationCode,
   login,
   me,
   logout,
@@ -15,6 +17,8 @@ import { authMiddleware } from '../middlewares/auth';
 const router = Router();
 
 router.post('/register', register);
+router.post('/verify-registration', verifyRegistration);
+router.post('/resend-registration-code', resendRegistrationCode);
 router.post('/login', login);
 router.get('/me', authMiddleware, me);
 router.post('/logout', authMiddleware, logout);

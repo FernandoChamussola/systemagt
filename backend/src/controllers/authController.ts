@@ -7,7 +7,7 @@ import jwt from 'jsonwebtoken';
 import { generateToken } from '../utils/jwt';
 import { AuthRequest } from '../types';
 import { enviarWhatsApp, formatarTelefone } from './notificationController';
-import { enviarCodigoRecuperacao, isEmailConfigured } from '../services/emailService';
+import { enviarCodigoRecuperacao, enviarCodigoVerificacaoCadastro, isEmailConfigured } from '../services/emailService';
 
 const prisma = new PrismaClient();
 
@@ -41,9 +41,29 @@ const resetPasswordSchema = z.object({
   novaSenha: z.string().min(6, 'Senha deve ter no minimo 6 caracteres'),
 });
 
+const verifyRegistrationSchema = z.object({
+  email: z.string().email('Email inválido'),
+  codigo: z.string().length(6, 'Código deve ter 6 dígitos'),
+});
+
+const resendRegistrationSchema = z.object({
+  email: z.string().email('Email inválido'),
+});
+
+function maskEmail(email: string): string {
+  const [localPart, domain] = email.split('@');
+  return localPart.slice(0, 2) + '***' + '@' + domain;
+}
+
 export async function register(req: Request, res: Response) {
   try {
     const { nome, email, senha, telefone } = registerSchema.parse(req.body);
+
+    if (!isEmailConfigured()) {
+      return res.status(503).json({
+        error: 'Serviço de email não configurado. Não é possível concluir o cadastro.',
+      });
+    }
 
     const userExists = await prisma.user.findUnique({
       where: { email },
@@ -53,36 +73,265 @@ export async function register(req: Request, res: Response) {
       return res.status(400).json({ error: 'Email já cadastrado' });
     }
 
+    const recentPending = await prisma.pendingRegistration.findFirst({
+      where: {
+        email,
+        criadoEm: {
+          gte: new Date(Date.now() - 2 * 60 * 1000),
+        },
+      },
+      orderBy: { criadoEm: 'desc' },
+    });
+
+    if (recentPending) {
+      const waitSeconds = Math.ceil(
+        (120000 - (Date.now() - recentPending.criadoEm.getTime())) / 1000
+      );
+      return res.status(429).json({
+        error: `Aguarde ${waitSeconds} segundos antes de solicitar novo código`,
+      });
+    }
+
     const senhaHash = await bcrypt.hash(senha, 10);
-
-    // Format phone before saving
     const telefoneFormatado = telefone ? formatarTelefone(telefone) : null;
+    const codigo = crypto.randomInt(100000, 999999).toString();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-    const user = await prisma.user.create({
+    await prisma.pendingRegistration.deleteMany({
+      where: { email },
+    });
+
+    await prisma.pendingRegistration.create({
       data: {
         nome,
         email,
         senha: senhaHash,
         telefone: telefoneFormatado,
+        codigo,
+        expiraEm: expiresAt,
+      },
+    });
+
+    const resultado = await enviarCodigoVerificacaoCadastro(email, nome, codigo);
+
+    if (!resultado.sucesso) {
+      await prisma.pendingRegistration.deleteMany({
+        where: { email },
+      });
+      console.error('Erro ao enviar email de verificação:', resultado.erro);
+      return res.status(500).json({
+        error: 'Erro ao enviar código por email. Tente novamente.',
+      });
+    }
+
+    return res.status(200).json({
+      message: 'Código de verificação enviado com sucesso',
+      codeSentTo: maskEmail(email),
+      requiresVerification: true,
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: error.errors[0].message });
+    }
+    console.error('Erro no registro:', error);
+    return res.status(500).json({ error: 'Erro ao processar cadastro' });
+  }
+}
+
+export async function verifyRegistration(req: Request, res: Response) {
+  try {
+    const { email, codigo } = verifyRegistrationSchema.parse(req.body);
+
+    const pending = await prisma.pendingRegistration.findFirst({
+      where: {
+        email,
+        codigo,
+        usado: false,
+        expiraEm: {
+          gte: new Date(),
+        },
+      },
+      orderBy: { criadoEm: 'desc' },
+    });
+
+    if (!pending) {
+      const latestPending = await prisma.pendingRegistration.findFirst({
+        where: {
+          email,
+          usado: false,
+          expiraEm: {
+            gte: new Date(),
+          },
+        },
+        orderBy: { criadoEm: 'desc' },
+      });
+
+      if (latestPending) {
+        if (latestPending.tentativas >= 5) {
+          await prisma.pendingRegistration.update({
+            where: { id: latestPending.id },
+            data: { usado: true },
+          });
+
+          return res.status(429).json({
+            error: 'Muitas tentativas. Solicite um novo código.',
+          });
+        }
+
+        await prisma.pendingRegistration.update({
+          where: { id: latestPending.id },
+          data: { tentativas: latestPending.tentativas + 1 },
+        });
+      }
+
+      return res.status(400).json({
+        error: 'Código inválido ou expirado',
+      });
+    }
+
+    if (pending.tentativas >= 5) {
+      await prisma.pendingRegistration.update({
+        where: { id: pending.id },
+        data: { usado: true },
+      });
+
+      return res.status(429).json({
+        error: 'Muitas tentativas. Solicite um novo código.',
+      });
+    }
+
+    const userExists = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (userExists) {
+      await prisma.pendingRegistration.update({
+        where: { id: pending.id },
+        data: { usado: true },
+      });
+      return res.status(400).json({ error: 'Email já cadastrado' });
+    }
+
+    const user = await prisma.user.create({
+      data: {
+        nome: pending.nome,
+        email: pending.email,
+        senha: pending.senha,
+        telefone: pending.telefone,
       },
       select: {
         id: true,
         nome: true,
         email: true,
         telefone: true,
+        role: true,
         criadoEm: true,
       },
     });
 
-    const token = generateToken(user.id);
+    await prisma.pendingRegistration.update({
+      where: { id: pending.id },
+      data: { usado: true },
+    });
+
+    const token = await generateToken(user.id);
 
     return res.status(201).json({ user, token });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: error.errors[0].message });
     }
-    console.error('Erro no registro:', error);
-    return res.status(500).json({ error: 'Erro ao criar usuário' });
+    console.error('Erro ao verificar cadastro:', error);
+    return res.status(500).json({ error: 'Erro ao verificar código' });
+  }
+}
+
+export async function resendRegistrationCode(req: Request, res: Response) {
+  try {
+    const { email } = resendRegistrationSchema.parse(req.body);
+
+    if (!isEmailConfigured()) {
+      return res.status(503).json({
+        error: 'Serviço de email não configurado.',
+      });
+    }
+
+    const userExists = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (userExists) {
+      return res.status(400).json({ error: 'Email já cadastrado' });
+    }
+
+    const pending = await prisma.pendingRegistration.findFirst({
+      where: {
+        email,
+        usado: false,
+        expiraEm: {
+          gte: new Date(),
+        },
+      },
+      orderBy: { criadoEm: 'desc' },
+    });
+
+    if (!pending) {
+      return res.status(400).json({
+        error: 'Cadastro não encontrado ou expirado. Preencha o formulário novamente.',
+      });
+    }
+
+    const recentPending = await prisma.pendingRegistration.findFirst({
+      where: {
+        email,
+        criadoEm: {
+          gte: new Date(Date.now() - 2 * 60 * 1000),
+        },
+      },
+      orderBy: { criadoEm: 'desc' },
+    });
+
+    if (recentPending) {
+      const waitSeconds = Math.ceil(
+        (120000 - (Date.now() - recentPending.criadoEm.getTime())) / 1000
+      );
+      return res.status(429).json({
+        error: `Aguarde ${waitSeconds} segundos antes de solicitar novo código`,
+      });
+    }
+
+    const codigo = crypto.randomInt(100000, 999999).toString();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+    await prisma.pendingRegistration.update({
+      where: { id: pending.id },
+      data: {
+        codigo,
+        expiraEm: expiresAt,
+        tentativas: 0,
+        criadoEm: new Date(),
+      },
+    });
+
+    const resultado = await enviarCodigoVerificacaoCadastro(email, pending.nome, codigo);
+
+    if (!resultado.sucesso) {
+      console.error('Erro ao reenviar email de verificação:', resultado.erro);
+      return res.status(500).json({
+        error: 'Erro ao reenviar código por email. Tente novamente.',
+      });
+    }
+
+    return res.json({
+      message: 'Código reenviado com sucesso',
+      codeSentTo: maskEmail(email),
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: error.errors[0].message });
+    }
+    console.error('Erro ao reenviar código de cadastro:', error);
+    return res.status(500).json({ error: 'Erro ao reenviar código' });
   }
 }
 

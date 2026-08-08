@@ -145,6 +145,23 @@ model Notification {
   @@map("notifications")
 }
 
+model PendingRegistration {
+  id         String   @id @default(uuid())
+  nome       String
+  email      String   @unique
+  senha      String
+  telefone   String?
+  codigo     String
+  tentativas Int      @default(0)
+  usado      Boolean  @default(false)
+  expiraEm   DateTime @map("expira_em")
+  criadoEm   DateTime @default(now()) @map("criado_em")
+
+  @@index([codigo])
+  @@index([expiraEm])
+  @@map("pending_registrations")
+}
+
 model PasswordResetToken {
   id            String   @id @default(uuid())
   userId        String   @map("usuario_id")

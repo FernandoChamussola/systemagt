@@ -130,6 +130,71 @@ DebtTracker
 }
 
 /**
+ * Envia email com código de verificação de cadastro
+ */
+export async function enviarCodigoVerificacaoCadastro(
+  email: string,
+  nome: string,
+  codigo: string
+): Promise<EmailResult> {
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 10px 10px 0 0;">
+        <h1 style="color: white; margin: 0; text-align: center;">DebtTracker</h1>
+      </div>
+
+      <div style="background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;">
+        <h2 style="color: #333; margin-top: 0;">Olá ${nome},</h2>
+
+        <p style="color: #666; font-size: 16px;">
+          Obrigado por se cadastrar! Para confirmar seu email e ativar sua conta, use o código abaixo:
+        </p>
+
+        <div style="background: #667eea; color: white; font-size: 32px; font-weight: bold; text-align: center; padding: 20px; border-radius: 8px; letter-spacing: 8px; margin: 20px 0;">
+          ${codigo}
+        </div>
+
+        <p style="color: #999; font-size: 14px;">
+          Este código expira em <strong>10 minutos</strong>.
+        </p>
+
+        <p style="color: #999; font-size: 14px;">
+          Se você não solicitou este cadastro, ignore este email.
+        </p>
+
+        <hr style="border: none; border-top: 1px solid #ddd; margin: 30px 0;">
+
+        <p style="color: #999; font-size: 12px; text-align: center;">
+          Este é um email automático. Não responda a esta mensagem.
+        </p>
+      </div>
+    </div>
+  `;
+
+  const text = `
+Olá ${nome},
+
+Obrigado por se cadastrar! Para confirmar seu email e ativar sua conta, use o código abaixo:
+
+${codigo}
+
+Este código expira em 10 minutos.
+
+Se você não solicitou este cadastro, ignore este email.
+
+--
+DebtTracker
+  `.trim();
+
+  return enviarEmail({
+    to: email,
+    subject: 'Código de Verificação de Email - DebtTracker',
+    text,
+    html,
+  });
+}
+
+/**
  * Envia email de mensagem do admin para usuário
  */
 export async function enviarMensagemAdmin(

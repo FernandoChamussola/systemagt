@@ -6,7 +6,9 @@ interface AuthContextData {
   token: string | null;
   loading: boolean;
   login: (email: string, senha: string) => Promise<{ user: User }>;
-  register: (nome: string, email: string, senha: string, telefone?: string) => Promise<void>;
+  register: (nome: string, email: string, senha: string, telefone?: string) => Promise<{ codeSentTo: string }>;
+  verifyRegistration: (email: string, codigo: string) => Promise<void>;
+  resendRegistrationCode: (email: string) => Promise<{ codeSentTo: string }>;
   logout: () => Promise<void>;
 }
 
@@ -48,10 +50,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function register(nome: string, email: string, senha: string, telefone?: string) {
-    const { user, token } = await authApi.register({ nome, email, senha, telefone });
+    const response = await authApi.register({ nome, email, senha, telefone });
+    return { codeSentTo: response.codeSentTo };
+  }
+
+  async function verifyRegistration(email: string, codigo: string) {
+    const { user, token } = await authApi.verifyRegistration(email, codigo);
     setUser(user);
     setToken(token);
     localStorage.setItem('token', token);
+  }
+
+  async function resendRegistrationCode(email: string) {
+    const response = await authApi.resendRegistrationCode(email);
+    return { codeSentTo: response.codeSentTo };
   }
 
   async function logout() {
@@ -67,7 +79,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, token, loading, login, register, verifyRegistration, resendRegistrationCode, logout }}>
       {children}
     </AuthContext.Provider>
   );
